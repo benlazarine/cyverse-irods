@@ -2,8 +2,8 @@
  *** For more information please refer to files in the COPYRIGHT directory ***/
 /*** This code is rewritten by Illyoung Choi (iychoi@email.arizona.edu)    ***
  *** funded by iPlantCollaborative (www.iplantcollaborative.org).          ***/
-#ifndef IFUSE_BASEOPS_HPP
-#define	IFUSE_BASEOPS_HPP
+#ifndef IFUSE_FS_HPP
+#define	IFUSE_FS_HPP
 
 #include "iFuse.Lib.hpp"
 #include "iFuse.Lib.Fd.hpp"
@@ -22,6 +22,7 @@ int iFuseFsOpen(const char *iRodsPath, iFuseFd_t **iFuseFd, int openFlag);
 int iFuseFsClose(iFuseFd_t *iFuseFd);
 int iFuseFsRead(iFuseFd_t *iFuseFd, char *buf, off_t off, size_t size);
 int iFuseFsWrite(iFuseFd_t *iFuseFd, const char *buf, off_t off, size_t size);
+int iFuseFsFlush(iFuseFd_t *iFuseFd);
 int iFuseFsCreate(const char *iRodsPath, mode_t mode);
 int iFuseFsUnlink(const char *iRodsPath);
 int iFuseFsOpenDir(const char *iRodsPath, iFuseDir_t **iFuseDir);

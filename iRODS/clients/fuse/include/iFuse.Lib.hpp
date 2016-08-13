@@ -16,8 +16,10 @@ typedef struct IFuseExtendedOpt {
 typedef struct IFuseOpt {
     char *program;
     bool debug;
+    bool nonempty;
     bool foreground;
     bool bufferedFS;
+    bool preload;
     int maxConn;
     int connTimeoutSec;
     int connKeepAliveSec;

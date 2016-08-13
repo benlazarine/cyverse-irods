@@ -52,6 +52,7 @@ BINS =		\
 LIB_OBJS =	\
 		$(objDir)/iFuseCmdLineOpt.o \
 		$(objDir)/iFuseOper.o \
+		$(objDir)/iFuse.Preload.o \
 		$(objDir)/iFuse.BufferedFS.o \
 		$(objDir)/iFuse.Lib.o \
 		$(objDir)/iFuse.Lib.Conn.o \
@@ -73,6 +74,7 @@ INCLUDES +=	-I$(incDir) -I$(reIncDir)
 CFLAGS_OPTIONS := -g $(CFLAGS) $(MY_CFLAG)
 ifdef IRODS_FS
 CFLAGS_OPTIONS += -D_REENTRANT
+CFLAGS_OPTIONS += -D_MYSQL_ICAT_DRIVER_PATCH_
     ifeq (${OS_platform}, osx_platform)
     INCLUDES +=    -I$(fuseHomeDir)/include/osxfuse
     else

@@ -15,6 +15,7 @@ typedef struct IFuseFd {
     iFuseConn_t *conn;
     char *iRodsPath;
     int openFlag;
+    off_t lastFilePointer;
     pthread_mutexattr_t lockAttr;
     pthread_mutex_t lock;
 } iFuseFd_t;
@@ -33,6 +34,7 @@ void iFuseDirInit();
 void iFuseFdDestroy();
 void iFuseDirDestroy();
 int iFuseFdOpen(iFuseFd_t **iFuseFd, iFuseConn_t *iFuseConn, const char* iRodsPath, int openFlag);
+int iFuseFdReopen(iFuseFd_t *iFuseFd);
 int iFuseDirOpen(iFuseDir_t **iFuseDir, iFuseConn_t *iFuseConn, const char* iRodsPath);
 int iFuseFdClose(iFuseFd_t *iFuseFd);
 int iFuseDirClose(iFuseDir_t *iFuseDir);

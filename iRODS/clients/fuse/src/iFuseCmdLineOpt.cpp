@@ -20,6 +20,7 @@ void iFuseCmdOptsInit() {
     bzero(&g_Opt, sizeof(iFuseOpt_t));
 
     g_Opt.bufferedFS = true;
+    g_Opt.preload = true;
     g_Opt.maxConn = IFUSE_MAX_NUM_CONN;
     g_Opt.connTimeoutSec = IFUSE_FREE_CONN_TIMEOUT_SEC;
     g_Opt.connKeepAliveSec = IFUSE_FREE_CONN_KEEPALIVE_SEC;
@@ -73,6 +74,10 @@ void iFuseCmdOptsParse(int argc, char **argv) {
     for(i=0;i<argc;i++) {
         if(strcmp("-onocache", argv[i]) == 0) {
             g_Opt.bufferedFS = false;
+            g_Opt.preload = false;
+            argv[i] = "-Z";
+        } else if(strcmp("-onopreload", argv[i]) == 0) {
+            g_Opt.preload = false;
             argv[i] = "-Z";
         } else if(strcmp("-omaxconn", argv[i]) == 0) {
             if(argc > i+1) {
@@ -115,6 +120,11 @@ void iFuseCmdOptsParse(int argc, char **argv) {
                     // fuse options
                     if (!strcmp("use_ino", optarg)) {
                         fprintf(stderr, "use_ino fuse option not supported, ignoring\n");
+                        break;
+                    }
+                    if (!strcmp("nonempty", optarg)) {
+                        // fuse nonempty option
+                        g_Opt.nonempty = true;
                         break;
                     }
                     bzero(buff, MAX_NAME_LEN);
@@ -225,6 +235,15 @@ void iFuseGenCmdLineForFuse(int *fuse_argc, char ***fuse_argv) {
 
         if(g_Opt.debug) {
             fprintf(stdout, "foreground : %d\n", g_Opt.foreground);
+        }
+    }
+    
+    if(g_Opt.nonempty) {
+        argv[i] = strdup("-nonempty");
+        i++;
+
+        if(g_Opt.debug) {
+            fprintf(stdout, "nonempty : %d\n", g_Opt.nonempty);
         }
     }
 

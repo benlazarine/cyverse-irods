@@ -15,8 +15,10 @@
 #include "iFuse.Lib.Util.hpp"
 #include "sockComm.h"
 
-static pthread_mutexattr_t g_FSConsecutiveOpLockAttr;
-static pthread_mutex_t g_FSConsecutiveOpLock;
+#ifdef _MYSQL_ICAT_DRIVER_PATCH_
+#else
+#warning _MYSQL_ICAT_DRIVER_PATCH_ is not set. This will increase performance in filesystem operations but may make filesystem inconsistent with MYSQL iCAT database driver.
+#endif
 
 static int _fillFileStat(struct stat *stbuf, uint mode, rodsLong_t size, uint ctime, uint mtime, uint atime) {
     if ( mode >= 0100 ) {
@@ -59,17 +61,12 @@ static int _fillDirStat(struct stat *stbuf, uint ctime, uint mtime, uint atime) 
  * Initialize buffer cache manager
  */
 void iFuseFsInit() {
-    pthread_mutexattr_init(&g_FSConsecutiveOpLockAttr);
-    pthread_mutexattr_settype(&g_FSConsecutiveOpLockAttr, PTHREAD_MUTEX_RECURSIVE);
-    pthread_mutex_init(&g_FSConsecutiveOpLock, &g_FSConsecutiveOpLockAttr);
 }
 
 /*
  * Destroy buffer cache manager
  */
 void iFuseFsDestroy() {
-    pthread_mutex_destroy(&g_FSConsecutiveOpLock);
-    pthread_mutexattr_destroy(&g_FSConsecutiveOpLockAttr);
 }
 
 int iFuseFsGetAttr(const char *iRodsPath, struct stat *stbuf) {
@@ -85,10 +82,13 @@ int iFuseFsGetAttr(const char *iRodsPath, struct stat *stbuf) {
 
     // temporarily obtain a connection
     // must be marked unused and release lock after use
-    status = _newConn(&iFuseConn);
+#ifdef _MYSQL_ICAT_DRIVER_PATCH_
+    status = iFuseConnGetAndUse(&iFuseConn, IFUSE_CONN_TYPE_FOR_ONETIMEUSE);
+#else
+    status = iFuseConnGetAndUse(&iFuseConn, IFUSE_CONN_TYPE_FOR_SHORTOP);
+#endif
     if (status < 0) {
         iFuseRodsClientLogError(LOG_ERROR, status, "iFuseFsGetAttr: iFuseConnGetAndUse of %s error", iRodsPath);
-        _freeConn(iFuseConn);
         return -EIO;
     }
 
@@ -105,7 +105,7 @@ int iFuseFsGetAttr(const char *iRodsPath, struct stat *stbuf) {
                 iFuseRodsClientLogError(LOG_ERROR, status, "iFuseFsGetAttr: iFuseConnReconnect of %s error, status = %d",
                     iRodsPath, status);
                 iFuseConnUnlock(iFuseConn);
-                _freeConn(iFuseConn);
+                iFuseConnUnuse(iFuseConn);
                 return -ENOENT;
             } else {
                 status = iFuseRodsClientObjStat(iFuseConn->conn, &dataObjInp, &rodsObjStatOut);
@@ -113,12 +113,12 @@ int iFuseFsGetAttr(const char *iRodsPath, struct stat *stbuf) {
                     iFuseRodsClientLogError(LOG_ERROR, status, "iFuseFsGetAttr: iFuseRodsClientObjStat of %s error, status = %d",
                         iRodsPath, status);
                     iFuseConnUnlock(iFuseConn);
-                    _freeConn(iFuseConn);
+                    iFuseConnUnuse(iFuseConn);
                     return -ENOENT;
                 } else if(status == USER_FILE_DOES_NOT_EXIST) {
                     // file not exists!
                     iFuseConnUnlock(iFuseConn);
-                    _freeConn(iFuseConn);
+                    iFuseConnUnuse(iFuseConn);
                     return -ENOENT;
                 }
             }
@@ -126,19 +126,19 @@ int iFuseFsGetAttr(const char *iRodsPath, struct stat *stbuf) {
             iFuseRodsClientLogError(LOG_ERROR, status, "iFuseFsGetAttr: iFuseRodsClientObjStat of %s error, status = %d",
                 iRodsPath, status);
             iFuseConnUnlock(iFuseConn);
-            _freeConn(iFuseConn);
+            iFuseConnUnuse(iFuseConn);
             return -ENOENT;
         }
     } else if (status == USER_FILE_DOES_NOT_EXIST) {
         // file not exists!
         iFuseConnUnlock(iFuseConn);
-        _freeConn(iFuseConn);
+        iFuseConnUnuse(iFuseConn);
         return -ENOENT;
     }
 
     if(rodsObjStatOut == NULL) {
         iFuseConnUnlock(iFuseConn);
-        _freeConn(iFuseConn);
+        iFuseConnUnuse(iFuseConn);
         return -ENOENT;
     }
 
@@ -165,7 +165,7 @@ int iFuseFsGetAttr(const char *iRodsPath, struct stat *stbuf) {
     freeRodsObjStat(rodsObjStatOut);
 
     iFuseConnUnlock(iFuseConn);
-    _freeConn(iFuseConn);
+    iFuseConnUnuse(iFuseConn);
     return status;
 }
 
@@ -181,12 +181,14 @@ int iFuseFsOpen(const char *iRodsPath, iFuseFd_t **iFuseFd, int openFlag) {
     // obtain a connection for a file
     // must be released lock after use
     // while the file is opened, connection is in-use status.
-    status = _newConn(&iFuseConn);
+#ifdef _MYSQL_ICAT_DRIVER_PATCH_
+    status = iFuseConnGetAndUse(&iFuseConn, IFUSE_CONN_TYPE_FOR_ONETIMEUSE);
+#else
+    status = iFuseConnGetAndUse(&iFuseConn, IFUSE_CONN_TYPE_FOR_FILE_IO);
+#endif
     if (status < 0) {
-
         iFuseRodsClientLogError(LOG_ERROR, status, "iFuseFsOpen: iFuseConnGetAndUse of %s error",
                 iRodsPath);
-        _freeConn(iFuseConn);
         return -EIO;
     }
 
@@ -224,7 +226,7 @@ int iFuseFsClose(iFuseFd_t *iFuseFd) {
     }
 
     free(iRodsPath);
-    _freeConn(iFuseConn);
+    iFuseConnUnuse(iFuseConn);
     return 0;
 }
 
@@ -245,63 +247,84 @@ int iFuseFsRead(iFuseFd_t *iFuseFd, char *buf, off_t off, size_t size) {
 
     iFuseConn = iFuseFd->conn;
 
-    pthread_mutex_lock(&g_FSConsecutiveOpLock);
-
     iFuseFdLock(iFuseFd);
     iFuseConnLock(iFuseConn);
 
-    bzero(&dataObjLseekInp, sizeof( openedDataObjInp_t ));
+    if(iFuseFd->lastFilePointer != off) {
+        bzero(&dataObjLseekInp, sizeof( openedDataObjInp_t ));
 
-    dataObjLseekInp.l1descInx = iFuseFd->fd;
-    dataObjLseekInp.offset = off;
-    dataObjLseekInp.whence = SEEK_SET;
+        dataObjLseekInp.l1descInx = iFuseFd->fd;
+        dataObjLseekInp.offset = off;
+        dataObjLseekInp.whence = SEEK_SET;
 
-    iFuseRodsClientLog(LOG_DEBUG, "iFuseFsRead: iFuseRodsClientDataObjLseek %s, offset: %lld", iFuseFd->iRodsPath, (long long)off);
+        iFuseRodsClientLog(LOG_DEBUG, "iFuseFsRead: iFuseRodsClientDataObjLseek %s, offset: %lld", iFuseFd->iRodsPath, (long long)off);
 
-    status = iFuseRodsClientDataObjLseek(iFuseConn->conn, &dataObjLseekInp, &dataObjLseekOut);
-    if (status < 0 || dataObjLseekOut == NULL) {
-        if (iFuseRodsClientReadMsgError(status)) {
-            if(iFuseConnReconnect(iFuseConn) < 0) {
-                iFuseRodsClientLogError(LOG_ERROR, status, "iFuseFsRead: iFuseConnReconnect of %s error, status = %d",
-                    iFuseFd->iRodsPath, status);
-                iFuseConnUnlock(iFuseConn);
-                iFuseFdUnlock(iFuseFd);
-                pthread_mutex_unlock(&g_FSConsecutiveOpLock);
-                return status;
-            } else {
-                status = iFuseRodsClientDataObjLseek(iFuseConn->conn, &dataObjLseekInp, &dataObjLseekOut);
-                if (status < 0 || dataObjLseekOut == NULL) {
-                    iFuseRodsClientLogError(LOG_ERROR, status, "iFuseFsRead: iFuseRodsClientDataObjLseek of %s error, status = %d",
+        status = iFuseRodsClientDataObjLseek(iFuseConn->conn, &dataObjLseekInp, &dataObjLseekOut);
+        if (status < 0 || dataObjLseekOut == NULL) {
+            if (iFuseRodsClientReadMsgError(status)) {
+                if(iFuseConnReconnect(iFuseConn) < 0) {
+                    iFuseRodsClientLogError(LOG_ERROR, status, "iFuseFsRead: iFuseConnReconnect of %s error, status = %d",
                         iFuseFd->iRodsPath, status);
+                    
+                    iFuseFd->lastFilePointer = -1;
+                    
                     iFuseConnUnlock(iFuseConn);
                     iFuseFdUnlock(iFuseFd);
-                    pthread_mutex_unlock(&g_FSConsecutiveOpLock);
                     return status;
+                } else {
+                    status = iFuseRodsClientDataObjLseek(iFuseConn->conn, &dataObjLseekInp, &dataObjLseekOut);
+                    if (status < 0 || dataObjLseekOut == NULL) {
+                        iFuseRodsClientLogError(LOG_ERROR, status, "iFuseFsRead: iFuseRodsClientDataObjLseek of %s error, status = %d",
+                            iFuseFd->iRodsPath, status);
+                        
+                        iFuseFd->lastFilePointer = -1;
+                        
+                        iFuseConnUnlock(iFuseConn);
+                        iFuseFdUnlock(iFuseFd);
+                        return status;
+                    }
                 }
+            } else {
+                iFuseRodsClientLogError(LOG_ERROR, status, "iFuseFsRead: iFuseRodsClientDataObjLseek of %s error, status = %d",
+                    iFuseFd->iRodsPath, status);
+                
+                iFuseFd->lastFilePointer = -1;
+                
+                iFuseConnUnlock(iFuseConn);
+                iFuseFdUnlock(iFuseFd);
+                return status;
             }
-        } else {
-            iFuseRodsClientLogError(LOG_ERROR, status, "iFuseFsRead: iFuseRodsClientDataObjLseek of %s error, status = %d",
-                iFuseFd->iRodsPath, status);
+        }
+
+        if(dataObjLseekOut == NULL) {
+            iFuseRodsClientLogError(LOG_ERROR, status, "iFuseFsRead: iFuseRodsClientDataObjLseek failed on seek %s error, offset = %lu, requested = %lu",
+                    iFuseFd->iRodsPath, dataObjLseekOut->offset, off);
+            
+            iFuseFd->lastFilePointer = -1;
+            
             iFuseConnUnlock(iFuseConn);
             iFuseFdUnlock(iFuseFd);
-            pthread_mutex_unlock(&g_FSConsecutiveOpLock);
-            return status;
+            return -ENOENT;
         }
-    }
 
-    if(dataObjLseekOut->offset != off) {
-        iFuseRodsClientLogError(LOG_ERROR, status, "iFuseFsRead: iFuseRodsClientDataObjLseek failed on seek %s error, offset = %lu, requested = %lu",
-                iFuseFd->iRodsPath, dataObjLseekOut->offset, off);
+        if(dataObjLseekOut->offset != off) {
+            iFuseRodsClientLogError(LOG_ERROR, status, "iFuseFsRead: iFuseRodsClientDataObjLseek failed on seek %s error, offset = %lu, requested = %lu",
+                    iFuseFd->iRodsPath, dataObjLseekOut->offset, off);
+            
+            iFuseFd->lastFilePointer = -1;
+            
+            free(dataObjLseekOut);
+            iFuseConnUnlock(iFuseConn);
+            iFuseFdUnlock(iFuseFd);
+            return -ENOENT;
+        }
+
         free(dataObjLseekOut);
-        iFuseConnUnlock(iFuseConn);
-        iFuseFdUnlock(iFuseFd);
-        pthread_mutex_unlock(&g_FSConsecutiveOpLock);
-        return -ENOENT;
+        dataObjLseekOut = NULL;
+        
+        iFuseFd->lastFilePointer = off;
     }
-
-    free(dataObjLseekOut);
-    dataObjLseekOut = NULL;
-
+        
     bzero(&dataObjReadInp, sizeof ( openedDataObjInp_t));
     bzero(&dataObjReadOutBBuf, sizeof ( bytesBuf_t));
 
@@ -318,7 +341,6 @@ int iFuseFsRead(iFuseFd_t *iFuseFd, char *buf, off_t off, size_t size) {
                     iFuseFd->iRodsPath, status);
                 iFuseConnUnlock(iFuseConn);
                 iFuseFdUnlock(iFuseFd);
-                pthread_mutex_unlock(&g_FSConsecutiveOpLock);
                 return -ENOENT;
             } else {
                 status = iFuseRodsClientDataObjRead(iFuseConn->conn, &dataObjReadInp, &dataObjReadOutBBuf);
@@ -328,7 +350,6 @@ int iFuseFsRead(iFuseFd_t *iFuseFd, char *buf, off_t off, size_t size) {
                     readError = getErrno( status );
                     iFuseConnUnlock(iFuseConn);
                     iFuseFdUnlock(iFuseFd);
-                    pthread_mutex_unlock(&g_FSConsecutiveOpLock);
                     if(readError > 0) {
                         return -readError;
                     } else {
@@ -342,7 +363,6 @@ int iFuseFsRead(iFuseFd_t *iFuseFd, char *buf, off_t off, size_t size) {
             readError = getErrno( status );
             iFuseConnUnlock(iFuseConn);
             iFuseFdUnlock(iFuseFd);
-            pthread_mutex_unlock(&g_FSConsecutiveOpLock);
             if(readError > 0) {
                 return -readError;
             } else {
@@ -359,10 +379,11 @@ int iFuseFsRead(iFuseFd_t *iFuseFd, char *buf, off_t off, size_t size) {
         free(dataObjReadOutBBuf.buf);
         dataObjReadOutBBuf.buf = NULL;
     }
+    
+    iFuseFd->lastFilePointer += status;
 
     iFuseConnUnlock(iFuseConn);
     iFuseFdUnlock(iFuseFd);
-    pthread_mutex_unlock(&g_FSConsecutiveOpLock);
     return status;
 }
 
@@ -383,63 +404,85 @@ int iFuseFsWrite(iFuseFd_t *iFuseFd, const char *buf, off_t off, size_t size) {
 
     iFuseConn = iFuseFd->conn;
 
-    pthread_mutex_lock(&g_FSConsecutiveOpLock);
-
     iFuseFdLock(iFuseFd);
     iFuseConnLock(iFuseConn);
 
-    bzero(&dataObjLseekInp, sizeof( openedDataObjInp_t ));
+    if(iFuseFd->lastFilePointer != off) {
+        bzero(&dataObjLseekInp, sizeof( openedDataObjInp_t ));
 
-    dataObjLseekInp.l1descInx = iFuseFd->fd;
-    dataObjLseekInp.offset = off;
-    dataObjLseekInp.whence = SEEK_SET;
+        dataObjLseekInp.l1descInx = iFuseFd->fd;
+        dataObjLseekInp.offset = off;
+        dataObjLseekInp.whence = SEEK_SET;
 
-    iFuseRodsClientLog(LOG_DEBUG, "iFuseFsWrite: iFuseRodsClientDataObjLseek %s, offset: %lld", iFuseFd->iRodsPath, (long long)off);
+        iFuseRodsClientLog(LOG_DEBUG, "iFuseFsWrite: iFuseRodsClientDataObjLseek %s, offset: %lld", iFuseFd->iRodsPath, (long long)off);
 
-    status = iFuseRodsClientDataObjLseek(iFuseConn->conn, &dataObjLseekInp, &dataObjLseekOut);
-    if (status < 0 || dataObjLseekOut == NULL) {
-        if (iFuseRodsClientReadMsgError(status)) {
-            if(iFuseConnReconnect(iFuseConn) < 0) {
-                iFuseRodsClientLogError(LOG_ERROR, status, "iFuseFsWrite: iFuseConnReconnect of %s error, status = %d",
-                    iFuseFd->iRodsPath, status);
-                iFuseConnUnlock(iFuseConn);
-                iFuseFdUnlock(iFuseFd);
-                pthread_mutex_unlock(&g_FSConsecutiveOpLock);
-                return status;
-            } else {
-                status = iFuseRodsClientDataObjLseek(iFuseConn->conn, &dataObjLseekInp, &dataObjLseekOut);
-                if (status < 0 || dataObjLseekOut == NULL) {
-                    iFuseRodsClientLogError(LOG_ERROR, status, "iFuseFsWrite: iFuseRodsClientDataObjLseek of %s error, status = %d",
+        status = iFuseRodsClientDataObjLseek(iFuseConn->conn, &dataObjLseekInp, &dataObjLseekOut);
+        if (status < 0 || dataObjLseekOut == NULL) {
+            if (iFuseRodsClientReadMsgError(status)) {
+                if(iFuseConnReconnect(iFuseConn) < 0) {
+                    iFuseRodsClientLogError(LOG_ERROR, status, "iFuseFsWrite: iFuseConnReconnect of %s error, status = %d",
                         iFuseFd->iRodsPath, status);
+                    
+                    iFuseFd->lastFilePointer = -1;
+                    
                     iFuseConnUnlock(iFuseConn);
                     iFuseFdUnlock(iFuseFd);
-                    pthread_mutex_unlock(&g_FSConsecutiveOpLock);
                     return status;
+                } else {
+                    status = iFuseRodsClientDataObjLseek(iFuseConn->conn, &dataObjLseekInp, &dataObjLseekOut);
+                    if (status < 0 || dataObjLseekOut == NULL) {
+                        iFuseRodsClientLogError(LOG_ERROR, status, "iFuseFsWrite: iFuseRodsClientDataObjLseek of %s error, status = %d",
+                            iFuseFd->iRodsPath, status);
+                        
+                        iFuseFd->lastFilePointer = -1;
+                        
+                        iFuseConnUnlock(iFuseConn);
+                        iFuseFdUnlock(iFuseFd);
+                        return status;
+                    }
                 }
+            } else {
+                iFuseRodsClientLogError(LOG_ERROR, status, "iFuseFsWrite: iFuseRodsClientDataObjLseek of %s error, status = %d",
+                    iFuseFd->iRodsPath, status);
+                
+                iFuseFd->lastFilePointer = -1;
+                
+                iFuseConnUnlock(iFuseConn);
+                iFuseFdUnlock(iFuseFd);
+                return status;
             }
-        } else {
-            iFuseRodsClientLogError(LOG_ERROR, status, "iFuseFsWrite: iFuseRodsClientDataObjLseek of %s error, status = %d",
-                iFuseFd->iRodsPath, status);
+        }
+
+        if(dataObjLseekOut == NULL) {
+            iFuseRodsClientLogError(LOG_ERROR, status, "iFuseFsWrite: iFuseRodsClientDataObjLseek failed on seek %s error, offset = %lu, requested = %lu",
+                    iFuseFd->iRodsPath, dataObjLseekOut->offset, off);
+            
+            iFuseFd->lastFilePointer = -1;
+            
             iFuseConnUnlock(iFuseConn);
             iFuseFdUnlock(iFuseFd);
-            pthread_mutex_unlock(&g_FSConsecutiveOpLock);
-            return status;
+            return -ENOENT;
         }
-    }
 
-    if(dataObjLseekOut->offset != off) {
-        iFuseRodsClientLogError(LOG_ERROR, status, "iFuseFsWrite: iFuseRodsClientDataObjLseek failed on seek %s error, offset = %lu, requested = %lu",
-                iFuseFd->iRodsPath, dataObjLseekOut->offset, off);
+        if(dataObjLseekOut->offset != off) {
+            iFuseRodsClientLogError(LOG_ERROR, status, "iFuseFsWrite: iFuseRodsClientDataObjLseek failed on seek %s error, offset = %lu, requested = %lu",
+                    iFuseFd->iRodsPath, dataObjLseekOut->offset, off);
+            
+            iFuseFd->lastFilePointer = -1;
+            
+            free(dataObjLseekOut);
+            iFuseConnUnlock(iFuseConn);
+            iFuseFdUnlock(iFuseFd);
+            return -ENOENT;
+        }
+
         free(dataObjLseekOut);
-        iFuseConnUnlock(iFuseConn);
-        iFuseFdUnlock(iFuseFd);
-        pthread_mutex_unlock(&g_FSConsecutiveOpLock);
-        return -ENOENT;
+        dataObjLseekOut = NULL;
+        
+        // update
+        iFuseFd->lastFilePointer = off;
     }
-
-    free(dataObjLseekOut);
-    dataObjLseekOut = NULL;
-
+    
     bzero(&dataObjWriteInp, sizeof ( openedDataObjInp_t));
     bzero(&dataObjWriteInpBBuf, sizeof ( bytesBuf_t));
 
@@ -459,7 +502,6 @@ int iFuseFsWrite(iFuseFd_t *iFuseFd, const char *buf, off_t off, size_t size) {
                     iFuseFd->iRodsPath, status);
                 iFuseConnUnlock(iFuseConn);
                 iFuseFdUnlock(iFuseFd);
-                pthread_mutex_unlock(&g_FSConsecutiveOpLock);
                 return -ENOENT;
             } else {
                 status = iFuseRodsClientDataObjWrite(iFuseConn->conn, &dataObjWriteInp, &dataObjWriteInpBBuf);
@@ -469,7 +511,6 @@ int iFuseFsWrite(iFuseFd_t *iFuseFd, const char *buf, off_t off, size_t size) {
                     writeError = getErrno( status );
                     iFuseConnUnlock(iFuseConn);
                     iFuseFdUnlock(iFuseFd);
-                    pthread_mutex_unlock(&g_FSConsecutiveOpLock);
                     if(writeError > 0) {
                         return -writeError;
                     } else {
@@ -483,7 +524,6 @@ int iFuseFsWrite(iFuseFd_t *iFuseFd, const char *buf, off_t off, size_t size) {
             writeError = getErrno( status );
             iFuseConnUnlock(iFuseConn);
             iFuseFdUnlock(iFuseFd);
-            pthread_mutex_unlock(&g_FSConsecutiveOpLock);
             if(writeError > 0) {
                 return -writeError;
             } else {
@@ -492,10 +532,30 @@ int iFuseFsWrite(iFuseFd_t *iFuseFd, const char *buf, off_t off, size_t size) {
         }
     }
 
+    iFuseFd->lastFilePointer += status;
+    
     iFuseConnUnlock(iFuseConn);
     iFuseFdUnlock(iFuseFd);
-    pthread_mutex_unlock(&g_FSConsecutiveOpLock);
     return status;
+}
+
+int iFuseFsFlush(iFuseFd_t *iFuseFd) {
+    int status = 0;
+    
+    assert(iFuseFd != NULL);
+    assert(iFuseFd->iRodsPath != NULL);
+    assert(iFuseFd->fd > 0);
+
+    iFuseRodsClientLog(LOG_DEBUG, "iFuseFsFlush: %s", iFuseFd->iRodsPath);
+
+    status = iFuseFdReopen(iFuseFd);
+    if (status < 0) {
+        iFuseRodsClientLogError(LOG_ERROR, status, "iFuseFsClose: iFuseFdReopen of %s error, status = %d",
+                iFuseFd->iRodsPath, status);
+        return -ENOENT;
+    }
+
+    return 0;
 }
 
 int iFuseFsCreate(const char *iRodsPath, mode_t mode) {
@@ -509,14 +569,11 @@ int iFuseFsCreate(const char *iRodsPath, mode_t mode) {
 
     iFuseRodsClientLog(LOG_DEBUG, "iFuseFsCreate: %s", iRodsPath);
 
-    pthread_mutex_lock(&g_FSConsecutiveOpLock);
-
     // temporarily obtain a connection
     // must be marked unused and release lock after use
-    status = iFuseConnGetAndUse(&iFuseConn, IFUSE_CONN_TYPE_FOR_STATUS);
+    status = iFuseConnGetAndUse(&iFuseConn, IFUSE_CONN_TYPE_FOR_SHORTOP);
     if (status < 0) {
         iFuseRodsClientLogError(LOG_ERROR, status, "iFuseFsCreate: iFuseConnGetAndUse of %s error", iRodsPath);
-        pthread_mutex_unlock(&g_FSConsecutiveOpLock);
         return -EIO;
     }
 
@@ -543,7 +600,6 @@ int iFuseFsCreate(const char *iRodsPath, mode_t mode) {
 
                 iFuseConnUnlock(iFuseConn);
                 iFuseConnUnuse(iFuseConn);
-                pthread_mutex_unlock(&g_FSConsecutiveOpLock);
                 return -ENOENT;
             } else {
                 status = iFuseRodsClientDataObjCreate(iFuseConn->conn, &dataObjInp);
@@ -554,7 +610,6 @@ int iFuseFsCreate(const char *iRodsPath, mode_t mode) {
 
                     iFuseConnUnlock(iFuseConn);
                     iFuseConnUnuse(iFuseConn);
-                    pthread_mutex_unlock(&g_FSConsecutiveOpLock);
                     return -ENOENT;
                 }
             }
@@ -565,7 +620,6 @@ int iFuseFsCreate(const char *iRodsPath, mode_t mode) {
 
             iFuseConnUnlock(iFuseConn);
             iFuseConnUnuse(iFuseConn);
-            pthread_mutex_unlock(&g_FSConsecutiveOpLock);
             return -ENOENT;
         }
     }
@@ -587,7 +641,6 @@ int iFuseFsCreate(const char *iRodsPath, mode_t mode) {
                     iRodsPath, fd);
                 iFuseConnUnlock(iFuseConn);
                 iFuseConnUnuse(iFuseConn);
-                pthread_mutex_unlock(&g_FSConsecutiveOpLock);
                 return -ENOENT;
             } else {
                 status = iFuseRodsClientDataObjClose(iFuseConn->conn, &dataObjCloseInp);
@@ -596,7 +649,6 @@ int iFuseFsCreate(const char *iRodsPath, mode_t mode) {
                         iRodsPath, fd);
                     iFuseConnUnlock(iFuseConn);
                     iFuseConnUnuse(iFuseConn);
-                    pthread_mutex_unlock(&g_FSConsecutiveOpLock);
                     return -ENOENT;
                 }
             }
@@ -605,14 +657,12 @@ int iFuseFsCreate(const char *iRodsPath, mode_t mode) {
                 iRodsPath, fd);
             iFuseConnUnlock(iFuseConn);
             iFuseConnUnuse(iFuseConn);
-            pthread_mutex_unlock(&g_FSConsecutiveOpLock);
             return -ENOENT;
         }
     }
 
     iFuseConnUnlock(iFuseConn);
     iFuseConnUnuse(iFuseConn);
-    pthread_mutex_unlock(&g_FSConsecutiveOpLock);
     return status;
 }
 
@@ -627,9 +677,8 @@ int iFuseFsUnlink(const char *iRodsPath) {
 
     // temporarily obtain a connection
     // must be marked unused and release lock after use
-    status = iFuseConnGetAndUse(&iFuseConn, IFUSE_CONN_TYPE_FOR_STATUS);
+    status = iFuseConnGetAndUse(&iFuseConn, IFUSE_CONN_TYPE_FOR_SHORTOP);
     if (status < 0) {
-
         iFuseRodsClientLogError(LOG_ERROR, status, "iFuseFsUnlink: iFuseConnGetAndUse of %s error",
                 iRodsPath);
         return -EIO;
@@ -695,11 +744,14 @@ int iFuseFsOpenDir(const char *iRodsPath, iFuseDir_t **iFuseDir) {
     // obtain a connection for a file
     // must be released lock after use
     // while the file is opened, connection is in-use status.
-    status = _newConn(&iFuseConn);
+#ifdef _MYSQL_ICAT_DRIVER_PATCH_
+    status = iFuseConnGetAndUse(&iFuseConn, IFUSE_CONN_TYPE_FOR_ONETIMEUSE);
+#else
+    status = iFuseConnGetAndUse(&iFuseConn, IFUSE_CONN_TYPE_FOR_FILE_IO);
+#endif
     if (status < 0) {
         iFuseRodsClientLogError(LOG_ERROR, status, "iFuseFsOpenDir: iFuseConnGetAndUse of %s error",
                 iRodsPath);
-        _freeConn(iFuseConn);
         return -EIO;
     }
 
@@ -708,7 +760,6 @@ int iFuseFsOpenDir(const char *iRodsPath, iFuseDir_t **iFuseDir) {
         iFuseRodsClientLogError(LOG_ERROR, status, "iFuseFsOpenDir: iFuseDirOpen of %s error, status = %d",
                 iRodsPath, status);
         iFuseConnUnlock(iFuseConn);
-        _freeConn(iFuseConn);
         return -ENOENT;
     }
 
@@ -739,7 +790,7 @@ int iFuseFsCloseDir(iFuseDir_t *iFuseDir) {
     }
 
     free(iRodsPath);
-    _freeConn(iFuseConn);
+    iFuseConnUnuse(iFuseConn);
     return 0;
 }
 
@@ -795,7 +846,7 @@ int iFuseFsMakeDir(const char *iRodsPath, mode_t mode) {
 
     // temporarily obtain a connection
     // must be marked unused and release lock after use
-    status = iFuseConnGetAndUse(&iFuseConn, IFUSE_CONN_TYPE_FOR_STATUS);
+    status = iFuseConnGetAndUse(&iFuseConn, IFUSE_CONN_TYPE_FOR_SHORTOP);
     if (status < 0) {
         iFuseRodsClientLogError(LOG_ERROR, status, "iFuseFsMakeDir: iFuseConnGetAndUse of %s error", iRodsPath);
         return -EIO;
@@ -850,7 +901,7 @@ int iFuseFsRemoveDir(const char *iRodsPath) {
 
     // temporarily obtain a connection
     // must be marked unused and release lock after use
-    status = iFuseConnGetAndUse(&iFuseConn, IFUSE_CONN_TYPE_FOR_STATUS);
+    status = iFuseConnGetAndUse(&iFuseConn, IFUSE_CONN_TYPE_FOR_SHORTOP);
     if (status < 0) {
         iFuseRodsClientLogError(LOG_ERROR, status, "iFuseFsRemoveDir: iFuseConnGetAndUse of %s error",
                 iRodsPath);
@@ -933,7 +984,7 @@ int iFuseFsRename(const char *iRodsFromPath, const char *iRodsToPath) {
 
     // temporarily obtain a connection
     // must be marked unused and release lock after use
-    status = iFuseConnGetAndUse(&iFuseConn, IFUSE_CONN_TYPE_FOR_STATUS);
+    status = iFuseConnGetAndUse(&iFuseConn, IFUSE_CONN_TYPE_FOR_SHORTOP);
     if (status < 0) {
         iFuseRodsClientLogError(LOG_ERROR, status, "iFuseFsRename: iFuseConnGetAndUse of %s to %s error",
                 iRodsFromPath, iRodsToPath);
@@ -1001,7 +1052,7 @@ int iFuseFsTruncate(const char *iRodsPath, off_t size) {
 
     // temporarily obtain a connection
     // must be marked unused and release lock after use
-    status = iFuseConnGetAndUse(&iFuseConn, IFUSE_CONN_TYPE_FOR_STATUS);
+    status = iFuseConnGetAndUse(&iFuseConn, IFUSE_CONN_TYPE_FOR_SHORTOP);
     if (status < 0) {
         iFuseRodsClientLogError(LOG_ERROR, status, "iFuseFsTruncate: iFuseConnGetAndUse of %s error",
                 iRodsPath);
@@ -1062,7 +1113,7 @@ int iFuseFsChmod(const char *iRodsPath, mode_t mode) {
 
     // temporarily obtain a connection
     // must be marked unused and release lock after use
-    status = iFuseConnGetAndUse(&iFuseConn, IFUSE_CONN_TYPE_FOR_STATUS);
+    status = iFuseConnGetAndUse(&iFuseConn, IFUSE_CONN_TYPE_FOR_SHORTOP);
     if (status < 0) {
         iFuseRodsClientLogError(LOG_ERROR, status, "iFuseFsChmod: iFuseConnGetAndUse of %s error",
                 iRodsPath);
