@@ -176,7 +176,7 @@ static int _freeAllConn() {
         _freeConn(g_InUseShortopConn);
         g_InUseShortopConn = NULL;
     }
-    
+
     while(!g_InUseOnetimeuseConn.empty()) {
         it_connmap = g_InUseOnetimeuseConn.begin();
         if(it_connmap != g_InUseOnetimeuseConn.end()) {
@@ -186,7 +186,7 @@ static int _freeAllConn() {
             _freeConn(tmpIFuseConn);
         }
     }
-    
+
     pthread_mutex_unlock(&g_ConnectedConnLock);
 
     return 0;
@@ -257,7 +257,7 @@ static void* _connChecker(void* param) {
                 g_InUseShortopConn->lastKeepAliveTime = iFuseLibGetCurrentTime();
             }
         }
-        
+
         for(it_connmap=g_InUseOnetimeuseConn.begin();it_connmap!=g_InUseOnetimeuseConn.end();it_connmap++) {
             iFuseConn = it_connmap->second;
 
@@ -266,7 +266,7 @@ static void* _connChecker(void* param) {
                 iFuseConn->lastKeepAliveTime = iFuseLibGetCurrentTime();
             }
         }
-        
+
         //iFuseRodsClientLog(LOG_DEBUG, "_freeConnCollector: checking idle connections");
 
         // iterate free conn list to check timedout connections
@@ -586,6 +586,8 @@ int iFuseConnGetAndUse(iFuseConn_t **iFuseConn, int connType) {
     } else {
         assert(0);
     }
+    assert(0);
+    return 0;
 }
 
 /*
@@ -610,10 +612,10 @@ int iFuseConnUnuse(iFuseConn_t *iFuseConn) {
         if(iFuseConn->type == IFUSE_CONN_TYPE_FOR_SHORTOP) {
             assert(g_InUseShortopConn == iFuseConn);
             assert(g_FreeShortopConn == NULL);
-            
+
             g_InUseShortopConn = NULL;
             g_FreeShortopConn = iFuseConn;
-            
+
             pthread_mutex_unlock(&iFuseConn->lock);
             pthread_mutex_unlock(&g_ConnectedConnLock);
             return 0;
@@ -626,7 +628,7 @@ int iFuseConnUnuse(iFuseConn_t *iFuseConn) {
             }
 
             g_FreeConn.push_back(iFuseConn);
-            
+
             pthread_mutex_unlock(&iFuseConn->lock);
             pthread_mutex_unlock(&g_ConnectedConnLock);
             return 0;
@@ -636,17 +638,17 @@ int iFuseConnUnuse(iFuseConn_t *iFuseConn) {
                 // has it - remove
                 g_InUseOnetimeuseConn.erase(it_connmap);
             }
-            
+
             pthread_mutex_unlock(&iFuseConn->lock);
             pthread_mutex_unlock(&g_ConnectedConnLock);
-            
+
             _freeConn(iFuseConn);
             return 0;
         } else {
             assert(0);
         }
     }
-    
+
     pthread_mutex_unlock(&iFuseConn->lock);
     pthread_mutex_unlock(&g_ConnectedConnLock);
     return 0;

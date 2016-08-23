@@ -25,65 +25,64 @@ static pthread_mutex_t g_PreloadLock;
 static std::map<unsigned long, iFusePreload_t*> g_PreloadMap;
 
 static int _newPreloadPBlock(const char *iRodsPath, iFusePreloadPBlock_t **iFusePreloadPBlock) {
-    int status = 0;
     iFusePreloadPBlock_t *tmpIFusePreloadPBlock = NULL;
-    
+
     assert(iRodsPath != NULL);
     assert(iFusePreloadPBlock != NULL);
-    
+
     tmpIFusePreloadPBlock = (iFusePreloadPBlock_t *) calloc(1, sizeof ( iFusePreloadPBlock_t));
     if (tmpIFusePreloadPBlock == NULL) {
         *iFusePreloadPBlock = NULL;
         return SYS_MALLOC_ERR;
     }
-    
+
     tmpIFusePreloadPBlock->fd = NULL;
     tmpIFusePreloadPBlock->status = IFUSE_PRELOAD_PBLOCK_STATUS_INIT;
-    
+
     pthread_mutexattr_init(&tmpIFusePreloadPBlock->lockAttr);
     pthread_mutexattr_settype(&tmpIFusePreloadPBlock->lockAttr, PTHREAD_MUTEX_RECURSIVE);
     pthread_mutex_init(&tmpIFusePreloadPBlock->lock, &tmpIFusePreloadPBlock->lockAttr);
-    
+
     *iFusePreloadPBlock = tmpIFusePreloadPBlock;
     return 0;
 }
 
 static int _newPreload(iFusePreload_t **iFusePreload) {
     iFusePreload_t *tmpIFusePreload = NULL;
-    
+
     assert(iFusePreload != NULL);
-    
+
     tmpIFusePreload = (iFusePreload_t *) calloc(1, sizeof ( iFusePreload_t));
     if (tmpIFusePreload == NULL) {
         *iFusePreload = NULL;
         return SYS_MALLOC_ERR;
     }
-    
+
     // we must use new keyword instead of calloc since it contains c++ stl list object
     tmpIFusePreload->pblocks = new std::list<iFusePreloadPBlock_t*>();
     if(tmpIFusePreload->pblocks == NULL) {
         *iFusePreload = NULL;
         return SYS_MALLOC_ERR;
     }
-    
+
     pthread_mutexattr_init(&tmpIFusePreload->lockAttr);
     pthread_mutexattr_settype(&tmpIFusePreload->lockAttr, PTHREAD_MUTEX_RECURSIVE);
     pthread_mutex_init(&tmpIFusePreload->lock, &tmpIFusePreload->lockAttr);
-    
+
     *iFusePreload = tmpIFusePreload;
     return 0;
 }
 
 static int _freePreloadPBlock(iFusePreloadPBlock_t *iFusePreloadPBlock) {
     assert(iFusePreloadPBlock != NULL);
-    
-    if(iFusePreloadPBlock->status == IFUSE_PRELOAD_PBLOCK_STATUS_RUNNING || 
+
+    if(iFusePreloadPBlock->status == IFUSE_PRELOAD_PBLOCK_STATUS_RUNNING ||
             iFusePreloadPBlock->status == IFUSE_PRELOAD_PBLOCK_STATUS_INIT ||
             iFusePreloadPBlock->status == IFUSE_PRELOAD_PBLOCK_STATUS_COMPLETED ||
             iFusePreloadPBlock->status == IFUSE_PRELOAD_PBLOCK_STATUS_TASK_FAILED) {
         if(!iFusePreloadPBlock->threadJoined) {
             pthread_join(iFusePreloadPBlock->thread, NULL);
-            
+
             pthread_mutex_lock(&iFusePreloadPBlock->lock);
 
             // set to joined
@@ -92,30 +91,30 @@ static int _freePreloadPBlock(iFusePreloadPBlock_t *iFusePreloadPBlock) {
             pthread_mutex_unlock(&iFusePreloadPBlock->lock);
         }
     }
-    
+
     pthread_mutex_lock(&iFusePreloadPBlock->lock);
-    
+
     if(iFusePreloadPBlock->fd != NULL) {
         iFuseBufferedFsClose(iFusePreloadPBlock->fd);
         iFusePreloadPBlock->fd = NULL;
     }
-    
+
     iFusePreloadPBlock->blockID = 0;
-    
+
     pthread_mutex_unlock(&iFusePreloadPBlock->lock);
-    
+
     pthread_mutex_destroy(&iFusePreloadPBlock->lock);
     pthread_mutexattr_destroy(&iFusePreloadPBlock->lockAttr);
-    
+
     free(iFusePreloadPBlock);
     return 0;
 }
 
 static int _freePreload(iFusePreload_t *iFusePreload) {
     iFusePreloadPBlock_t *iFusePreloadPBlock = NULL;
-    
+
     assert(iFusePreload != NULL);
-    
+
     if(iFusePreload->pblocks != NULL) {
         while(!iFusePreload->pblocks->empty()) {
             iFusePreloadPBlock = iFusePreload->pblocks->front();
@@ -123,18 +122,18 @@ static int _freePreload(iFusePreload_t *iFusePreload) {
 
             _freePreloadPBlock(iFusePreloadPBlock);
         }
-        
+
         delete iFusePreload->pblocks;
     }
-    
+
     if(iFusePreload->iRodsPath != NULL) {
         free(iFusePreload->iRodsPath);
         iFusePreload->iRodsPath = NULL;
     }
-    
+
     pthread_mutex_destroy(&iFusePreload->lock);
     pthread_mutexattr_destroy(&iFusePreload->lockAttr);
-    
+
     free(iFusePreload);
     return 0;
 }
@@ -144,18 +143,18 @@ static int _releaseAllPreload() {
     iFusePreload_t *iFusePreload = NULL;
 
     pthread_mutex_lock(&g_PreloadLock);
-    
+
     // release all get
     while(!g_PreloadMap.empty()) {
         it_preloadmap = g_PreloadMap.begin();
         if(it_preloadmap != g_PreloadMap.end()) {
             iFusePreload = it_preloadmap->second;
             g_PreloadMap.erase(it_preloadmap);
-            
+
             _freePreload(iFusePreload);
         }
     }
-    
+
     pthread_mutex_unlock(&g_PreloadLock);
     return 0;
 }
@@ -167,24 +166,24 @@ static void* _preloadTask(void* param) {
     iFusePreloadPBlock_t *iFusePreloadPBlock;
     iFuseFd_t *iFuseFd;
     char *blockBuffer = (char*)calloc(1, getBufferCacheBlockSize());
-    
+
     assert(param != NULL);
-    
+
     iFusePreloadThreadParam = (iFusePreloadThreadParam_t*)param;
     iFusePreload = iFusePreloadThreadParam->preload;
     iFusePreloadPBlock = iFusePreloadThreadParam->pblock;
-    
+
     if(blockBuffer == NULL) {
         free(iFusePreloadThreadParam);
-        
+
         pthread_mutex_lock(&iFusePreloadPBlock->lock);
         iFusePreloadPBlock->status = IFUSE_PRELOAD_PBLOCK_STATUS_TASK_FAILED;
         pthread_mutex_unlock(&iFusePreloadPBlock->lock);
         return NULL;
     }
-    
+
     iFuseRodsClientLog(LOG_DEBUG, "_preloadTask: preloading %s, blockID: %u", iFusePreload->iRodsPath, iFusePreloadPBlock->blockID);
-    
+
     if(iFusePreloadPBlock->fd == NULL) {
         status = iFuseBufferedFsOpen(iFusePreload->iRodsPath, &iFuseFd, O_RDONLY);
         if (status < 0) {
@@ -192,39 +191,39 @@ static void* _preloadTask(void* param) {
                     iFusePreload->iRodsPath, status);
             free(blockBuffer);
             free(iFusePreloadThreadParam);
-            
+
             pthread_mutex_lock(&iFusePreloadPBlock->lock);
             iFusePreloadPBlock->status = IFUSE_PRELOAD_PBLOCK_STATUS_TASK_FAILED;
             pthread_mutex_unlock(&iFusePreloadPBlock->lock);
             return NULL;
         }
-        
+
         pthread_mutex_lock(&iFusePreloadPBlock->lock);
         iFusePreloadPBlock->fd = iFuseFd;
         pthread_mutex_unlock(&iFusePreloadPBlock->lock);
     }
-    
+
     status = iFuseBufferedFsReadBlock(iFusePreloadPBlock->fd, blockBuffer, iFusePreloadPBlock->blockID);
     if (status < 0) {
         iFuseRodsClientLogError(LOG_ERROR, status, "_preloadTask: iFuseBufferedFsReadBlock of %s error, status = %d",
                 iFusePreloadPBlock->fd->iRodsPath, status);
         free(blockBuffer);
         free(iFusePreloadThreadParam);
-            
+
         pthread_mutex_lock(&iFusePreloadPBlock->lock);
         iFusePreloadPBlock->status = IFUSE_PRELOAD_PBLOCK_STATUS_TASK_FAILED;
         pthread_mutex_unlock(&iFusePreloadPBlock->lock);
         return NULL;
     }
-    
+
     free(blockBuffer);
 
     pthread_mutex_lock(&iFusePreloadPBlock->lock);
     iFusePreloadPBlock->status = IFUSE_PRELOAD_PBLOCK_STATUS_COMPLETED;
     pthread_mutex_unlock(&iFusePreloadPBlock->lock);
-    
+
     free(iFusePreloadThreadParam);
-    
+
     return NULL;
 }
 
@@ -232,28 +231,28 @@ int _startPreload(iFusePreload_t *iFusePreload, unsigned int blockID, iFuseFd_t 
     int status = 0;
     iFusePreloadThreadParam_t *iFusePreloadThreadParam;
     iFusePreloadPBlock_t *iFusePreloadPBlock;
-    
+
     assert(iFusePreload != NULL);
-    
+
     iFuseRodsClientLog(LOG_DEBUG, "_startPreload: preloading %s, blockID: %u", iFusePreload->iRodsPath, blockID);
-    
+
     status = _newPreloadPBlock(iFusePreload->iRodsPath, &iFusePreloadPBlock);
     if(status < 0) {
         return status;
     }
-    
+
     iFusePreloadPBlock->fd = iFuseFd;
     iFusePreloadPBlock->blockID = blockID;
     iFusePreloadPBlock->status = IFUSE_PRELOAD_PBLOCK_STATUS_RUNNING;
-    
+
     iFusePreloadThreadParam = (iFusePreloadThreadParam_t*) calloc(1, sizeof(iFusePreloadThreadParam_t));
     if(iFusePreloadThreadParam == NULL) {
         return SYS_MALLOC_ERR;
     }
-    
+
     iFusePreloadThreadParam->preload = iFusePreload;
     iFusePreloadThreadParam->pblock = iFusePreloadPBlock;
-    
+
     status = pthread_create(&iFusePreloadPBlock->thread, NULL, _preloadTask, (void*)iFusePreloadThreadParam);
     if(status != 0) {
         iFuseRodsClientLogError(LOG_ERROR, status, "_startPreload: failed to create a thread for %s of block id %u, status = %d",
@@ -265,15 +264,14 @@ int _startPreload(iFusePreload_t *iFusePreload, unsigned int blockID, iFuseFd_t 
     }
 
     pthread_mutex_lock(&iFusePreload->lock);
-    
+
     iFusePreload->pblocks->push_back(iFusePreloadPBlock);
-    
+
     pthread_mutex_unlock(&iFusePreload->lock);
     return status;
 }
 
 int _readPreload(iFusePreload_t *iFusePreload, char *buf, unsigned int blockID) {
-    int status = 0;
     size_t readSize = 0;
     std::list<iFusePreloadPBlock_t*> removeList;
     std::list<iFusePreloadPBlock_t*> recycleList;
@@ -283,18 +281,18 @@ int _readPreload(iFusePreload_t *iFusePreload, char *buf, unsigned int blockID) 
     bool hasBlock = false;
     bool *pblockExistance = (bool*)calloc(IFUSE_PRELOAD_PBLOCK_NUM, sizeof(bool));
     int i;
-    
+
     assert(iFusePreload != NULL);
     assert(buf != NULL);
 
     if(pblockExistance == NULL) {
         return SYS_MALLOC_ERR;
     }
-    
+
     bzero(pblockExistance, IFUSE_PRELOAD_PBLOCK_NUM * sizeof(bool));
-    
+
     pthread_mutex_lock(&iFusePreload->lock);
-    
+
     // check loaded
     for(it_preloadpblock=iFusePreload->pblocks->begin();it_preloadpblock!=iFusePreload->pblocks->end();it_preloadpblock++) {
         iFusePreloadPBlock = *it_preloadpblock;
@@ -307,7 +305,7 @@ int _readPreload(iFusePreload_t *iFusePreload, char *buf, unsigned int blockID) 
             // remove old blocks
             // if block id is less than current block id
             // or block id is far larger than current block id (for backward read)
-            
+
             iFuseRodsClientLog(LOG_DEBUG, "_readPreload: found old preloaded data of %s, blockID: %u, cur blockID: %u", iFusePreload->iRodsPath, iFusePreloadPBlock->blockID, blockID);
             removeList.push_back(iFusePreloadPBlock);
         } else {
@@ -317,12 +315,12 @@ int _readPreload(iFusePreload_t *iFusePreload, char *buf, unsigned int blockID) 
             }
         }
     }
-    
+
     // wait old blocks to be joined
     for(it_preloadpblock=removeList.begin();it_preloadpblock!=removeList.end();it_preloadpblock++) {
         iFusePreloadPBlock = *it_preloadpblock;
-        
-        if(iFusePreloadPBlock->status == IFUSE_PRELOAD_PBLOCK_STATUS_RUNNING || 
+
+        if(iFusePreloadPBlock->status == IFUSE_PRELOAD_PBLOCK_STATUS_RUNNING ||
                 iFusePreloadPBlock->status == IFUSE_PRELOAD_PBLOCK_STATUS_INIT ||
                 iFusePreloadPBlock->status == IFUSE_PRELOAD_PBLOCK_STATUS_COMPLETED ||
                 iFusePreloadPBlock->status == IFUSE_PRELOAD_PBLOCK_STATUS_TASK_FAILED) {
@@ -340,14 +338,14 @@ int _readPreload(iFusePreload_t *iFusePreload, char *buf, unsigned int blockID) 
             }
         }
     }
-    
+
     // find reusable pblocks -> moves to recycleList
     // release old pblocks
     while(!removeList.empty()) {
         iFusePreloadPBlock = removeList.front();
-        
+
         iFuseRodsClientLog(LOG_DEBUG, "_readPreload: removing preloaded data of %s, blockID: %u", iFusePreload->iRodsPath, iFusePreloadPBlock->blockID);
-        
+
         removeList.pop_front();
         iFusePreload->pblocks->remove(iFusePreloadPBlock);
         if(iFusePreloadPBlock->fd != NULL &&
@@ -359,13 +357,13 @@ int _readPreload(iFusePreload_t *iFusePreload, char *buf, unsigned int blockID) 
             _freePreloadPBlock(iFusePreloadPBlock);
         }
     }
-    
+
     if(!hasBlock) {
         iFuseFd = NULL;
         if(!recycleList.empty()) {
             iFusePreloadPBlock = recycleList.front();
             recycleList.pop_front();
-            
+
             iFuseFd = iFusePreloadPBlock->fd;
             iFusePreloadPBlock->fd = NULL;
 
@@ -375,14 +373,14 @@ int _readPreload(iFusePreload_t *iFusePreload, char *buf, unsigned int blockID) 
         // param iFuseFd can be null
         _startPreload(iFusePreload, blockID, iFuseFd);
     }
-    
+
     for(it_preloadpblock=iFusePreload->pblocks->begin();it_preloadpblock!=iFusePreload->pblocks->end();it_preloadpblock++) {
         iFusePreloadPBlock = *it_preloadpblock;
 
         if(blockID == iFusePreloadPBlock->blockID) {
-            
+
             if(iFusePreloadPBlock->status == IFUSE_PRELOAD_PBLOCK_STATUS_INIT ||
-                    iFusePreloadPBlock->status == IFUSE_PRELOAD_PBLOCK_STATUS_RUNNING || 
+                    iFusePreloadPBlock->status == IFUSE_PRELOAD_PBLOCK_STATUS_RUNNING ||
                     iFusePreloadPBlock->status == IFUSE_PRELOAD_PBLOCK_STATUS_COMPLETED ||
                     iFusePreloadPBlock->status == IFUSE_PRELOAD_PBLOCK_STATUS_TASK_FAILED) {
                 if(!iFusePreloadPBlock->threadJoined) {
@@ -398,7 +396,7 @@ int _readPreload(iFusePreload_t *iFusePreload, char *buf, unsigned int blockID) 
                     pthread_mutex_unlock(&iFusePreloadPBlock->lock);
                 }
             }
-            
+
             if(iFusePreloadPBlock->status == IFUSE_PRELOAD_PBLOCK_STATUS_COMPLETED &&
                     iFusePreloadPBlock->threadJoined) {
                 pthread_mutex_lock(&iFusePreloadPBlock->lock);
@@ -416,7 +414,7 @@ int _readPreload(iFusePreload_t *iFusePreload, char *buf, unsigned int blockID) 
             }
         }
     }
-    
+
     for(i=0;i<IFUSE_PRELOAD_PBLOCK_NUM;i++) {
         if(!pblockExistance[i]) {
             // start preload
@@ -424,25 +422,25 @@ int _readPreload(iFusePreload_t *iFusePreload, char *buf, unsigned int blockID) 
             if(!recycleList.empty()) {
                 iFusePreloadPBlock = recycleList.front();
                 recycleList.pop_front();
-                
+
                 iFuseFd = iFusePreloadPBlock->fd;
                 iFusePreloadPBlock->fd = NULL;
-                
+
                 _freePreloadPBlock(iFusePreloadPBlock);
             }
-            
+
             // param iFuseFd can be null
             _startPreload(iFusePreload, i + blockID + 1, iFuseFd);
         }
     }
-    
+
     // release entries in recycleList that will not be used
     while(!recycleList.empty()) {
         iFusePreloadPBlock = recycleList.front();
         removeList.pop_front();
         _freePreloadPBlock(iFusePreloadPBlock);
     }
-    
+
     free(pblockExistance);
     pthread_mutex_unlock(&iFusePreload->lock);
     return readSize;
@@ -462,7 +460,7 @@ void iFusePreloadInit() {
  */
 void iFusePreloadDestroy() {
     _releaseAllPreload();
-    
+
     pthread_mutex_destroy(&g_PreloadLock);
     pthread_mutexattr_destroy(&g_PreloadLockAttr);
 }
@@ -475,19 +473,19 @@ int iFusePreloadOpen(const char *iRodsPath, iFuseFd_t **iFuseFd, int openFlag) {
     std::map<unsigned long, iFusePreload_t*>::iterator it_preloadmap;
     iFusePreload_t *iFusePreload = NULL;
     int i;
-    
+
     assert(iRodsPath != NULL);
     assert(iFuseFd != NULL);
-    
+
     iFuseRodsClientLog(LOG_DEBUG, "iFusePreloadOpen: %s, openFlag: 0x%08x", iRodsPath, openFlag);
-    
+
     status = iFuseBufferedFsOpen(iRodsPath, iFuseFd, openFlag);
     if (status < 0) {
         iFuseRodsClientLogError(LOG_ERROR, status, "iFusePreloadOpen: iFuseBufferedFsOpen of %s error, status = %d",
                 iRodsPath, status);
         return status;
     }
-    
+
     status = _newPreload(&iFusePreload);
     if (status == 0) {
         iFusePreload->fdId = (*iFuseFd)->fdId;
@@ -499,14 +497,14 @@ int iFusePreloadOpen(const char *iRodsPath, iFuseFd_t **iFuseFd, int openFlag) {
                 _startPreload(iFusePreload, i, NULL);
             }
         }
-        
+
         pthread_mutex_lock(&g_PreloadLock);
 
         g_PreloadMap[(*iFuseFd)->fdId] = iFusePreload;
 
         pthread_mutex_unlock(&g_PreloadLock);
     }
-    
+
     return 0;
 }
 
@@ -519,14 +517,14 @@ int iFusePreloadClose(iFuseFd_t *iFuseFd) {
     iFusePreload_t *iFusePreload = NULL;
     char *iRodsPath;
     unsigned long fdId;
-    
+
     assert(iFuseFd != NULL);
-    
+
     iFuseRodsClientLog(LOG_DEBUG, "iFusePreloadClose: %s", iFuseFd->iRodsPath);
-    
+
     iRodsPath = strdup(iFuseFd->iRodsPath);
     fdId = iFuseFd->fdId;
-    
+
     status = iFuseBufferedFsClose(iFuseFd);
     if (status < 0) {
         iFuseRodsClientLogError(LOG_ERROR, status, "iFusePreloadClose: iFuseBufferedFsClose of %s error, status = %d",
@@ -534,11 +532,11 @@ int iFusePreloadClose(iFuseFd_t *iFuseFd) {
         free(iRodsPath);
         return -ENOENT;
     }
-    
+
     free(iRodsPath);
-    
+
     pthread_mutex_lock(&g_PreloadLock);
-    
+
     it_preloadmap = g_PreloadMap.find(fdId);
     if(it_preloadmap != g_PreloadMap.end()) {
         // has it
@@ -547,9 +545,9 @@ int iFusePreloadClose(iFuseFd_t *iFuseFd) {
 
         _freePreload(iFusePreload);
     }
-    
+
     pthread_mutex_unlock(&g_PreloadLock);
-    
+
     return status;
 }
 
@@ -564,19 +562,19 @@ int iFusePreloadRead(iFuseFd_t *iFuseFd, char *buf, off_t off, size_t size) {
     char *blockBuffer = (char*)calloc(1, getBufferCacheBlockSize());
     std::map<unsigned long, iFusePreload_t*>::iterator it_preloadmap;
     iFusePreload_t *iFusePreload = NULL;
-    
+
     assert(iFuseFd != NULL);
     assert(buf != NULL);
-    
+
     iFuseRodsClientLog(LOG_DEBUG, "iFusePreloadRead: %s, offset: %lld, size: %lld", iFuseFd->iRodsPath, (long long)off, (long long)size);
-    
+
     pthread_mutex_lock(&g_PreloadLock);
-    
+
     it_preloadmap = g_PreloadMap.find(iFuseFd->fdId);
     if(it_preloadmap != g_PreloadMap.end()) {
         // has it
         iFusePreload = it_preloadmap->second;
-        
+
         // read in block level
         remain = size;
         curOffset = off;
@@ -590,7 +588,7 @@ int iFusePreloadRead(iFuseFd_t *iFuseFd, char *buf, off_t off, size_t size) {
             if(status < 0) {
                 iFuseRodsClientLogError(LOG_ERROR, status, "iFusePreloadRead: _readPreload of %s error, status = %d",
                         iFuseFd->iRodsPath, status);
-                
+
                 status = iFuseBufferedFsRead(iFuseFd, buf, off, size);
                 if (status < 0) {
                     iFuseRodsClientLogError(LOG_ERROR, status, "iFusePreloadRead: iFuseBufferedFsRead of %s error, status = %d",
@@ -599,7 +597,7 @@ int iFusePreloadRead(iFuseFd_t *iFuseFd, char *buf, off_t off, size_t size) {
                     free(blockBuffer);
                     return -ENOENT;
                 }
-                
+
                 pthread_mutex_unlock(&g_PreloadLock);
                 free(blockBuffer);
                 return status;
@@ -631,23 +629,23 @@ int iFusePreloadRead(iFuseFd_t *iFuseFd, char *buf, off_t off, size_t size) {
                 break;
             }
         }
-        
+
         pthread_mutex_unlock(&g_PreloadLock);
         free(blockBuffer);
         return readSize;
     }
-    
+
     // no preloaded data
     pthread_mutex_unlock(&g_PreloadLock);
-    
+
     free(blockBuffer);
-    
+
     status = iFuseBufferedFsRead(iFuseFd, buf, off, size);
     if (status < 0) {
         iFuseRodsClientLogError(LOG_ERROR, status, "iFusePreloadRead: iFuseBufferedFsRead of %s error, status = %d",
                 iFuseFd->iRodsPath, status);
         return -ENOENT;
     }
-    
+
     return status;
 }
