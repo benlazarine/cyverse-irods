@@ -12,6 +12,8 @@
 #include <unistd.h>
 #include "iFuseCmdLineOpt.hpp"
 #include "iFuse.Lib.Conn.hpp"
+#include "iFuse.Lib.RodsClientAPI.hpp"
+#include "iFuse.Preload.hpp"
 #include "miscUtil.h"
 
 static iFuseOpt_t g_Opt;
@@ -22,8 +24,13 @@ void iFuseCmdOptsInit() {
     g_Opt.bufferedFS = true;
     g_Opt.preload = true;
     g_Opt.maxConn = IFUSE_MAX_NUM_CONN;
+    g_Opt.blocksize = IFUSE_BUFFER_CACHE_BLOCK_SIZE;
+    g_Opt.connReuse = false;
     g_Opt.connTimeoutSec = IFUSE_FREE_CONN_TIMEOUT_SEC;
     g_Opt.connKeepAliveSec = IFUSE_FREE_CONN_KEEPALIVE_SEC;
+    g_Opt.connCheckIntervalSec = IFUSE_FREE_CONN_CHECK_INTERVAL_SEC;
+    g_Opt.rodsapiTimeoutSec = IFUSE_RODSCLIENTAPI_TIMEOUT_SEC;
+    g_Opt.preloadNumBlocks = IFUSE_PRELOAD_PBLOCK_NUM;
 }
 
 void iFuseCmdOptsDestroy() {
@@ -85,6 +92,14 @@ void iFuseCmdOptsParse(int argc, char **argv) {
                 argv[i+1] = "-Z";
             }
             argv[i] = "-Z";
+        } else if(strcmp("-oblocksize", argv[i]) == 0) {
+            if(argc > i+1) {
+                g_Opt.blocksize = atoi(argv[i+1]);
+                argv[i+1] = "-Z";
+            }
+        } else if(strcmp("-oconnreuse", argv[i]) == 0) {
+            g_Opt.connReuse = true;
+            argv[i] = "-Z";
         } else if(strcmp("-oconntimeout", argv[i]) == 0) {
             if(argc > i+1) {
                 g_Opt.connTimeoutSec = atoi(argv[i+1]);
@@ -97,6 +112,21 @@ void iFuseCmdOptsParse(int argc, char **argv) {
                 argv[i+1] = "-Z";
             }
             argv[i] = "-Z";
+        } else if(strcmp("-oconncheckinterval", argv[i]) == 0) {
+            if(argc > i+1) {
+                g_Opt.connCheckIntervalSec = atoi(argv[i+1]);
+                argv[i+1] = "-Z";
+            }
+        } else if(strcmp("-oapitimeout", argv[i]) == 0) {
+            if(argc > i+1) {
+                g_Opt.rodsapiTimeoutSec = atoi(argv[i+1]);
+                argv[i+1] = "-Z";
+            }
+        } else if(strcmp("-opreloadblocks", argv[i]) == 0) {
+            if(argc > i+1) {
+                g_Opt.preloadNumBlocks = atoi(argv[i+1]);
+                argv[i+1] = "-Z";
+            }
         }
     }
 

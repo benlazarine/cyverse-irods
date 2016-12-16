@@ -21,8 +21,13 @@ typedef struct IFuseOpt {
     bool bufferedFS;
     bool preload;
     int maxConn;
+    int blocksize;
+    bool connReuse;
     int connTimeoutSec;
     int connKeepAliveSec;
+    int connCheckIntervalSec;
+    int rodsapiTimeoutSec;
+    int preloadNumBlocks;
     char *mountpoint;
     iFuseExtendedOpt_t *extendedOpts;
 } iFuseOpt_t;
@@ -37,4 +42,3 @@ void iFuseLibDestroy();
 
 
 #endif	/* IFUSE_LIB_HPP */
-

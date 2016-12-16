@@ -30,6 +30,7 @@ static unsigned long g_connIDGen;
 static int g_maxConnNum = IFUSE_MAX_NUM_CONN;
 static int g_connTimeoutSec = IFUSE_FREE_CONN_TIMEOUT_SEC;
 static int g_connKeepAliveSec = IFUSE_FREE_CONN_KEEPALIVE_SEC;
+static int g_connCheckIntervalSec = IFUSE_FREE_CONN_CHECK_INTERVAL_SEC;
 
 /*
  * Lock order :
@@ -295,7 +296,7 @@ static void* _connChecker(void* param) {
 
         pthread_mutex_unlock(&g_ConnectedConnLock);
 
-        sleep(IFUSE_FREE_CONN_CHECK_PERIOD);
+        sleep(g_connCheckIntervalSec);
     }
 
     return NULL;
@@ -389,6 +390,10 @@ void iFuseConnInit() {
     if(iFuseLibGetOption()->connKeepAliveSec > 0) {
         g_connKeepAliveSec = iFuseLibGetOption()->connKeepAliveSec;
     }
+    
+    if(iFuseLibGetOption()->connCheckIntervalSec > 0) {
+        g_connCheckIntervalSec = iFuseLibGetOption()->connCheckIntervalSec;
+   }
 
     pthread_mutexattr_init(&g_ConnectedConnLockAttr);
     pthread_mutexattr_settype(&g_ConnectedConnLockAttr, PTHREAD_MUTEX_RECURSIVE);

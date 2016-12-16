@@ -15,10 +15,7 @@
 #include "iFuse.Lib.Util.hpp"
 #include "sockComm.h"
 
-#ifdef IRODS_FUSE_USE_MYSQL_ICAT_DRIVER_PATCH
-#else
-#warning IRODS_FUSE_USE_MYSQL_ICAT_DRIVER_PATCH is not set. This will increase performance in filesystem operations but may make filesystem inconsistent with MYSQL iCAT database driver.
-#endif
+static bool g_connReuse = false;
 
 static int _fillFileStat(struct stat *stbuf, uint mode, rodsLong_t size, uint ctime, uint mtime, uint atime) {
     if ( mode >= 0100 ) {
@@ -61,6 +58,7 @@ static int _fillDirStat(struct stat *stbuf, uint ctime, uint mtime, uint atime) 
  * Initialize buffer cache manager
  */
 void iFuseFsInit() {
+    g_connReuse = iFuseLibGetOption()->connReuse;
 }
 
 /*
@@ -82,11 +80,12 @@ int iFuseFsGetAttr(const char *iRodsPath, struct stat *stbuf) {
 
     // temporarily obtain a connection
     // must be marked unused and release lock after use
-#ifdef IRODS_FUSE_USE_MYSQL_ICAT_DRIVER_PATCH
-    status = iFuseConnGetAndUse(&iFuseConn, IFUSE_CONN_TYPE_FOR_ONETIMEUSE);
-#else
-    status = iFuseConnGetAndUse(&iFuseConn, IFUSE_CONN_TYPE_FOR_SHORTOP);
-#endif
+    if(g_connReuse) {
+        status = iFuseConnGetAndUse(&iFuseConn, IFUSE_CONN_TYPE_FOR_SHORTOP);
+    } else {
+        status = iFuseConnGetAndUse(&iFuseConn, IFUSE_CONN_TYPE_FOR_ONETIMEUSE);
+    }
+    
     if (status < 0) {
         iFuseRodsClientLogError(LOG_ERROR, status, "iFuseFsGetAttr: iFuseConnGetAndUse of %s error", iRodsPath);
         return -EIO;
@@ -181,11 +180,12 @@ int iFuseFsOpen(const char *iRodsPath, iFuseFd_t **iFuseFd, int openFlag) {
     // obtain a connection for a file
     // must be released lock after use
     // while the file is opened, connection is in-use status.
-#ifdef IRODS_FUSE_USE_MYSQL_ICAT_DRIVER_PATCH
-    status = iFuseConnGetAndUse(&iFuseConn, IFUSE_CONN_TYPE_FOR_ONETIMEUSE);
-#else
-    status = iFuseConnGetAndUse(&iFuseConn, IFUSE_CONN_TYPE_FOR_FILE_IO);
-#endif
+    if(g_connReuse) {
+        status = iFuseConnGetAndUse(&iFuseConn, IFUSE_CONN_TYPE_FOR_FILE_IO);
+    } else {
+        status = iFuseConnGetAndUse(&iFuseConn, IFUSE_CONN_TYPE_FOR_ONETIMEUSE);
+    }
+
     if (status < 0) {
         iFuseRodsClientLogError(LOG_ERROR, status, "iFuseFsOpen: iFuseConnGetAndUse of %s error",
                 iRodsPath);
@@ -744,11 +744,12 @@ int iFuseFsOpenDir(const char *iRodsPath, iFuseDir_t **iFuseDir) {
     // obtain a connection for a file
     // must be released lock after use
     // while the file is opened, connection is in-use status.
-#ifdef IRODS_FUSE_USE_MYSQL_ICAT_DRIVER_PATCH
-    status = iFuseConnGetAndUse(&iFuseConn, IFUSE_CONN_TYPE_FOR_ONETIMEUSE);
-#else
-    status = iFuseConnGetAndUse(&iFuseConn, IFUSE_CONN_TYPE_FOR_FILE_IO);
-#endif
+    if(g_connReuse) {
+        status = iFuseConnGetAndUse(&iFuseConn, IFUSE_CONN_TYPE_FOR_FILE_IO);
+    } else {
+        status = iFuseConnGetAndUse(&iFuseConn, IFUSE_CONN_TYPE_FOR_ONETIMEUSE);
+    }
+
     if (status < 0) {
         iFuseRodsClientLogError(LOG_ERROR, status, "iFuseFsOpenDir: iFuseConnGetAndUse of %s error",
                 iRodsPath);
