@@ -43,7 +43,6 @@ static int _newBufferCache(iFuseBufferCache_t **iFuseBufferCache) {
 }
 
 static int _freeBufferCache(iFuseBufferCache_t *iFuseBufferCache) {
-
     assert(iFuseBufferCache != NULL);
 
     iFuseBufferCache->fdId = 0;
@@ -667,7 +666,7 @@ int iFuseBufferedFsRead(iFuseFd_t *iFuseFd, char *buf, off_t off, size_t size) {
         remain -= curSize;
         curOffset += curSize;
 
-        if(blockSize < g_blocksize) {
+        if(blockSize < (size_t)g_blocksize) {
             // eof
             break;
         }

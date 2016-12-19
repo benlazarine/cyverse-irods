@@ -3,9 +3,10 @@
 /*** This code is rewritten by Illyoung Choi (iychoi@email.arizona.edu)    ***
  *** funded by iPlantCollaborative (www.iplantcollaborative.org).          ***/
 #ifndef IFUSE_LIB_CONN_HPP
-#define	IFUSE_LIB_CONN_HPP
+#define IFUSE_LIB_CONN_HPP
 
 #include <pthread.h>
+#include <time.h>
 #include "rodsClient.h"
 
 #define IFUSE_MAX_NUM_CONN	10

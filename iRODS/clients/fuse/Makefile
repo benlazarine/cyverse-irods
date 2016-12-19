@@ -57,6 +57,7 @@ LIB_OBJS =	\
 		$(objDir)/iFuse.Lib.o \
 		$(objDir)/iFuse.Lib.Conn.o \
 		$(objDir)/iFuse.Lib.Fd.o \
+		$(objDir)/iFuse.Lib.MetadataCache.o \
 		$(objDir)/iFuse.Lib.Util.o \
 		$(objDir)/iFuse.Lib.RodsClientAPI.o \
 		$(objDir)/iFuse.FS.o

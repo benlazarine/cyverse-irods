@@ -48,7 +48,7 @@ static void* _timeoutChecker(void* param) {
         for(it_oper=g_Operations.begin();it_oper!=g_Operations.end();it_oper++) {
             oper = *it_oper;
             
-            if(IFuseLibDiffTimeSec(currentTime, oper->start) >= g_rodsapiTimeoutSec) {
+            if(iFuseLibDiffTimeSec(currentTime, oper->start) >= g_rodsapiTimeoutSec) {
                 removeList.push_back(oper);
             }
         }

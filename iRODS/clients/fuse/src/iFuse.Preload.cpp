@@ -64,6 +64,7 @@ static int _newPreload(iFusePreload_t **iFusePreload) {
     tmpIFusePreload->pblocks = new std::list<iFusePreloadPBlock_t*>();
     if(tmpIFusePreload->pblocks == NULL) {
         *iFusePreload = NULL;
+        free(tmpIFusePreload);
         return SYS_MALLOC_ERR;
     }
 
@@ -312,7 +313,7 @@ int _readPreload(iFusePreload_t *iFusePreload, char *buf, unsigned int blockID) 
             removeList.push_back(iFusePreloadPBlock);
         } else {
             // preloaded blocks
-            if(iFusePreloadPBlock->blockID - blockID - 1 < g_preloadNumBlocks) {
+            if(iFusePreloadPBlock->blockID - blockID - 1 < (unsigned int)g_preloadNumBlocks) {
                 pblockExistance[iFusePreloadPBlock->blockID - blockID - 1] = true;
             }
         }
