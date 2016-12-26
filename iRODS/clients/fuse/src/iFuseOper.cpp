@@ -21,20 +21,11 @@
 void *iFuseInit(struct fuse_conn_info *conn) {
     UNUSED(conn);
     
-    iFuseLibInit();
-    iFuseFsInit();
-    iFuseBufferedFSInit();
-    iFusePreloadInit();
     return NULL;
 }
 
 void iFuseDestroy(void *data) {
     UNUSED(data);
-    
-    iFusePreloadDestroy();
-    iFuseBufferedFSDestroy();
-    iFuseFsDestroy();
-    iFuseLibDestroy();
 }
 
 int iFuseGetAttr(const char *path, struct stat *stbuf) {

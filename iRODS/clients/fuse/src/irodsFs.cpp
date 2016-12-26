@@ -11,10 +11,15 @@
 #include <pthread.h>
 #include "rodsClient.h"
 #include "parseCommandLine.h"
+#include "iFuse.Preload.hpp"
+#include "iFuse.BufferedFS.hpp"
+#include "iFuse.FS.hpp"
 #include "iFuse.Lib.hpp"
 #include "iFuse.Lib.Conn.hpp"
+#include "iFuse.Lib.Fd.hpp"
+#include "iFuse.Lib.Util.hpp"
+#include "iFuse.Lib.RodsClientAPI.hpp" 
 #include "iFuseOper.hpp"
-#include "iFuse.Lib.RodsClientAPI.hpp"
 #include "iFuseCmdLineOpt.hpp"
 
 static struct fuse_operations irodsOper;
@@ -99,10 +104,23 @@ int main(int argc, char **argv) {
     iFuseLibSetRodsEnv(&myRodsEnv);
     iFuseLibSetOption(&myiFuseOpt);
 
+    // Init libraries
+    iFuseLibInit();
+    iFuseFsInit();
+    iFuseBufferedFSInit();
+    iFusePreloadInit();
+
     // check iRODS iCAT host connectivity
     status = iFuseConnTest();
     if(status != 0) {
         fprintf(stderr, "iRods Fuse abort: cannot connect to iCAT\n");
+        
+        // Destroy libraries
+        iFusePreloadDestroy();
+        iFuseBufferedFSDestroy();
+        iFuseFsDestroy();
+        iFuseLibDestroy();
+        
         iFuseCmdOptsDestroy();
         return 1;
     }
@@ -112,6 +130,12 @@ int main(int argc, char **argv) {
     iFuseRodsClientLog(LOG_DEBUG, "main: iRods Fuse gets started.");
     status = fuse_main(fuse_argc, fuse_argv, &irodsOper, NULL);
     iFuseReleaseCmdLineForFuse(fuse_argc, fuse_argv);
+
+    // Destroy libraries
+    iFusePreloadDestroy();
+    iFuseBufferedFSDestroy();
+    iFuseFsDestroy();
+    iFuseLibDestroy();
 
     iFuseCmdOptsDestroy();
 
