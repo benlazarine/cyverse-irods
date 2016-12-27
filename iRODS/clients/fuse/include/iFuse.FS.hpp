@@ -6,6 +6,8 @@
 #define IFUSE_FS_HPP
 
 #include <sys/stat.h>
+#include <sys/uio.h>
+#include <sys/ioctl.h>
 #include "iFuse.Lib.hpp"
 #include "iFuse.Lib.Fd.hpp"
 
@@ -13,6 +15,10 @@
 #define DEF_DIR_MODE	0770
 #define FILE_BLOCK_SIZE	512
 #define DIR_SIZE        4096
+
+#define IOCTL_APP_NUMBER 0xEE
+
+#define IFUSEIOC_RESET_METADATA_CACHE _IO(IOCTL_APP_NUMBER, 0)
 
 typedef int (*iFuseDirFiller) (void *buf, const char *name, const struct stat *stbuf, off_t off);
 
@@ -34,5 +40,6 @@ int iFuseFsRemoveDir(const char *iRodsPath);
 int iFuseFsRename(const char *iRodsFromPath, const char *iRodsToPath);
 int iFuseFsTruncate(const char *iRodsPath, off_t size);
 int iFuseFsChmod(const char *iRodsPath, mode_t mode);
+int iFuseFsIoctl(const char *iRodsPath, int cmd, void *arg, struct fuse_file_info *fi, unsigned int flags, void *data);
 
 #endif	/* IFUSE_FS_HPP */

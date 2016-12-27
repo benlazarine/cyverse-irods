@@ -25,6 +25,7 @@ typedef struct IFuseDirCache {
 
 void iFuseMetadataCacheInit();
 void iFuseMetadataCacheDestroy();
+void iFuseMetadataCacheClear();
 int iFuseMetadataCacheClearExpiredStat(bool force);
 int iFuseMetadataCacheClearExpiredDir(bool force);
 int iFuseMetadataCachePutStat(const char *iRodsPath, const struct stat *stbuf);

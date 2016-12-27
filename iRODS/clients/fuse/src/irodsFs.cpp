@@ -62,6 +62,7 @@ int main(int argc, char **argv) {
     irodsOper.flush = iFuseFlush;
     irodsOper.mknod = iFuseCreate;
     irodsOper.fsync = iFuseFsync;
+    irodsOper.ioctl = iFuseIoctl;
 
     optStr = "Zhdo:";
 

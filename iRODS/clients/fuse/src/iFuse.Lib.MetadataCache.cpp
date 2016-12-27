@@ -606,6 +606,9 @@ void iFuseMetadataCacheDestroy() {
     pthread_mutexattr_destroy(&g_DirCacheLockAttr);
 }
 
+void iFuseMetadataCacheClear() {
+    _releaseAllCache();
+}
 
 int iFuseMetadataCacheClearExpiredStat(bool force) {
     

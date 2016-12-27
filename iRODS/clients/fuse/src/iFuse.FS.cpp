@@ -1377,3 +1377,26 @@ int iFuseFsChmod(const char *iRodsPath, mode_t mode) {
     
     return 0;
 }
+
+int iFuseFsIoctl(const char *iRodsPath, int cmd, void *arg, struct fuse_file_info *fi, unsigned int flags, void *data) {
+    assert(iRodsPath != NULL);
+
+    iFuseRodsClientLog(LOG_DEBUG, "iFuseFsIoctl: %s", iRodsPath);
+    
+    switch (cmd) {
+    	case IFUSEIOC_RESET_METADATA_CACHE:
+            {
+                // clear cache
+                if(g_CacheMetadata) {
+                    iFuseRodsClientLog(LOG_DEBUG, "iFuseFsIoctl: clearing all cache");
+                    iFuseMetadataCacheClear();
+                }
+            }
+        	return 0;
+
+    	default:
+    		return 0;
+	}
+
+    return 0;
+}
