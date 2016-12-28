@@ -83,22 +83,22 @@ irodsFsCtl.py yourMountPoint reset_cache
 Helpful options
 ---------------
 
-1) Unary options
+1) Enabling/disabling features
 - `-onocache`: Disable all caching features (Buffered IO, Preload, Metadata 
    Cache)
 - `-onopreload`: Disable Preload feature that pre-fetches file blocks in 
    advance. By default, the preload is turned on.
 - `-onocachemetadata`: Disable metadata caching feature. By default, the 
    metadata cacheing is turned on.
+- `-oconnreuse`: Set to reuse network connections for performance. This may 
+   provide inconsistent metadata with mysql-backed iCAT. By default, connections
+   are not reused.
 
-2) Options with number values
+2) Other configurations
 - `-omaxconn`: Set max number of network connection to be established at the 
    same time. By default, this is set to 10.
 - `-oblocksize`: Set block size at data transfer. All transfer is made in a 
    block-level for performance. By default, this is set to 1048576(1MB).
-- `-oconnreuse`: Set to reuse network connections for performance. This may 
-   provide inconsistent metadata with mysql-backed iCAT. By default, connections
-   are not reused.
 - `-oconntimeout`: Set timeout of a network connection. After the timeout, idle 
    connections will be automatically closed. By default, this is set to 300
    (5 minutes).
@@ -117,10 +117,12 @@ Helpful options
    invalidated after the timeout. By default, this is set to 180(3 minutes).
 
 
-For most cases, following command will work best:
+For example, following command will 1) reuse connections, 2) prefetch next 
+5 blocks and 3) set timeout of metadata cache to 1 hour.
 ```
-irodsFs -oconnreuse yourMountPoint
+irodsFs -oconnreuse -opreloadblocks 5 -ometadatacachetimeout 3600 yourMountPoint
 ```
+
 
 WARNING
 -------

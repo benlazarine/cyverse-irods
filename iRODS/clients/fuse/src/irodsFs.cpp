@@ -10,6 +10,7 @@
 #include <assert.h>
 #include <pthread.h>
 #include "rodsClient.h"
+#include "rcMisc.h"
 #include "parseCommandLine.h"
 #include "iFuse.Preload.hpp"
 #include "iFuse.BufferedFS.hpp"
@@ -26,11 +27,10 @@ static struct fuse_operations irodsOper;
 
 static void usage();
 static int checkMountPoint(char *mountPoint, bool nonempty);
+static void registerClientProgram(char *prog);
 
 int main(int argc, char **argv) {
     int status;
-    rodsArguments_t myRodsArgs;
-    char *optStr;
     rodsEnv myRodsEnv;
     int fuse_argc;
     char **fuse_argv;
@@ -64,23 +64,6 @@ int main(int argc, char **argv) {
     irodsOper.fsync = iFuseFsync;
     irodsOper.ioctl = iFuseIoctl;
 
-    optStr = "Zhdo:";
-
-    status = parseCmdLineOpt(argc, argv, optStr, 1, &myRodsArgs);
-    if (status < 0) {
-        printf("Use -h for help.\n");
-        return 1;
-    }
-
-    if (myRodsArgs.help == True) {
-        usage();
-        return 0;
-    }
-    if (myRodsArgs.version == True) {
-        printf("Version: %s", RODS_REL_VERSION);
-        return 0;
-    }
-
     status = getRodsEnv(&myRodsEnv);
     if (status < 0) {
         iFuseRodsClientLogError(LOG_ERROR, status, "main: getRodsEnv error.");
@@ -94,6 +77,15 @@ int main(int argc, char **argv) {
 
     iFuseGetOption(&myiFuseOpt);
     
+    if (myiFuseOpt.help) {
+        usage();
+        return 0;
+    }
+    if (myiFuseOpt.version) {
+        printf("iRODS RELEASE VERSION: %s\n", RODS_REL_VERSION);
+        return 0;
+    }
+    
     // check mount point
     status = checkMountPoint(myiFuseOpt.mountpoint, myiFuseOpt.nonempty);
     if(status != 0) {
@@ -101,7 +93,9 @@ int main(int argc, char **argv) {
         iFuseCmdOptsDestroy();
         return 1;
     }
-
+    
+    registerClientProgram(argv[0]);
+    
     iFuseLibSetRodsEnv(&myRodsEnv);
     iFuseLibSetOption(&myiFuseOpt);
 
@@ -149,13 +143,14 @@ int main(int argc, char **argv) {
 
 static void usage() {
     char *msgs[] = {
-        "Usage: irodsFs [-hd] [-o opt,[opt...]]",
+        "Usage: irodsFs [-hdfvV] [-o opt,[opt...]]",
         "Single user iRODS/Fuse server",
         "Options are:",
         " -h        this help",
         " -d        FUSE debug mode",
+        " -f        FUSE foreground mode",
         " -o        opt,[opt...]  FUSE mount options",
-        " --version print version information",
+        " -v, -V, --version print version information",
         ""
     };
     int i;
@@ -234,4 +229,15 @@ static int checkMountPoint(char *mountPoint, bool nonempty) {
     }
     
     return 0;
+}
+
+static void registerClientProgram(char *prog) {
+    // set SP_OPTION to argv[0] so it can be passed to server
+    char filename[MAX_NAME_LEN];
+    
+    *filename = '\0';
+    iFuseLibGetFilename(prog, filename, MAX_NAME_LEN);
+    if(strlen(filename) != 0) {
+        mySetenvStr(SP_OPTION, filename);
+    }
 }

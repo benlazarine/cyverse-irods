@@ -24,16 +24,16 @@ typedef struct IFusePreloadPBlock {
     int status;
     bool threadJoined;
     pthread_t thread;
-    pthread_mutexattr_t lockAttr;
-    pthread_mutex_t lock;
+    pthread_rwlockattr_t lockAttr;
+    pthread_rwlock_t lock;
 } iFusePreloadPBlock_t;
 
 typedef struct IFusePreload {
     unsigned long fdId;
     char *iRodsPath;
     std::list<iFusePreloadPBlock_t*> *pblocks;
-    pthread_mutexattr_t lockAttr;
-    pthread_mutex_t lock;
+    pthread_rwlockattr_t lockAttr;
+    pthread_rwlock_t lock;
 } iFusePreload_t;
 
 typedef struct IFusePreloadThreadParam {

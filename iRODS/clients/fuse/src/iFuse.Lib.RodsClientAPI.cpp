@@ -21,8 +21,8 @@ typedef struct IFuseRodsClientOperation {
     rcComm_t *conn;
 } iFuseRodsClientOperation_t;
 
-static pthread_mutex_t g_RodsClientAPILock;
-static pthread_mutexattr_t g_RodsClientAPILockAttr;
+static pthread_rwlock_t g_RodsClientAPILock;
+static pthread_rwlockattr_t g_RodsClientAPILockAttr;
 static std::list<iFuseRodsClientOperation_t*> g_Operations;
 static pthread_t g_TimeoutChecker;
 static bool g_TimeoutCheckerRunning;
@@ -40,7 +40,10 @@ static void* _timeoutChecker(void* param) {
     iFuseRodsClientLog(LOG_DEBUG, "_timeoutChecker: timeout checker is running");
     
     while(g_TimeoutCheckerRunning) {
-        pthread_mutex_lock(&g_RodsClientAPILock);
+        bool hasTimeout = false;
+        int nextCheckTime = g_RodsapiTimeoutSec;
+        
+        pthread_rwlock_rdlock(&g_RodsClientAPILock);
         
         currentTime = iFuseLibGetCurrentTime();
         
@@ -49,46 +52,74 @@ static void* _timeoutChecker(void* param) {
             oper = *it_oper;
             
             if(iFuseLibDiffTimeSec(currentTime, oper->start) >= g_RodsapiTimeoutSec) {
-                removeList.push_back(oper);
-            }
-        }
-        
-        // iterate remove list
-        while(!removeList.empty()) {
-            oper = removeList.front();
-            removeList.pop_front();
-            g_Operations.remove(oper);
-
-            if(oper->conn != NULL) {
-                socklen_t len;
-                struct sockaddr_storage addr;
-                char ipstr[INET6_ADDRSTRLEN];
-                int port;
-                len = sizeof addr;
-
-                getsockname(oper->conn->sock, (struct sockaddr*)&addr, &len);
-
-                // deal with both IPv4 and IPv6:
-                if (addr.ss_family == AF_INET) {
-                    struct sockaddr_in *s = (struct sockaddr_in *)&addr;
-                    port = ntohs(s->sin_port);
-                    inet_ntop(AF_INET, &s->sin_addr, ipstr, sizeof ipstr);
-                } else { // AF_INET6
-                    struct sockaddr_in6 *s = (struct sockaddr_in6 *)&addr;
-                    port = ntohs(s->sin6_port);
-                    inet_ntop(AF_INET6, &s->sin6_addr, ipstr, sizeof ipstr);
+                hasTimeout = true;
+                break;
+            } else {
+                int remainToTimedout = g_RodsapiTimeoutSec - iFuseLibDiffTimeSec(currentTime, oper->start);
+                if(nextCheckTime > remainToTimedout) {
+                    nextCheckTime = remainToTimedout;
                 }
-
-                iFuseRodsClientLog(LOG_DEBUG, "_timeoutChecker: kill connection (Local IP address): %s:%d\n", ipstr, port);
-
-                // kill the connection
-                shutdown(oper->conn->sock, 2);
             }
         }
         
-        pthread_mutex_unlock(&g_RodsClientAPILock);
+        pthread_rwlock_unlock(&g_RodsClientAPILock);
         
-        sleep(1);
+        if(hasTimeout) {
+            pthread_rwlock_wrlock(&g_RodsClientAPILock);
+            
+            // iterate operation list to check timedout
+            for(it_oper=g_Operations.begin();it_oper!=g_Operations.end();it_oper++) {
+                oper = *it_oper;
+                
+                if(iFuseLibDiffTimeSec(currentTime, oper->start) >= g_RodsapiTimeoutSec) {
+                    removeList.push_back(oper);
+                } else {
+                    int remainToTimedout = g_RodsapiTimeoutSec - iFuseLibDiffTimeSec(currentTime, oper->start);
+                    if(nextCheckTime > remainToTimedout) {
+                        nextCheckTime = remainToTimedout;
+                    }
+                }
+            }
+            
+            // iterate remove list
+            while(!removeList.empty()) {
+                oper = removeList.front();
+                removeList.pop_front();
+                g_Operations.remove(oper);
+
+                if(oper->conn != NULL) {
+                    socklen_t len;
+                    struct sockaddr_storage addr;
+                    char ipstr[INET6_ADDRSTRLEN];
+                    int port;
+                    len = sizeof addr;
+
+                    getsockname(oper->conn->sock, (struct sockaddr*)&addr, &len);
+
+                    // deal with both IPv4 and IPv6:
+                    if (addr.ss_family == AF_INET) {
+                        struct sockaddr_in *s = (struct sockaddr_in *)&addr;
+                        port = ntohs(s->sin_port);
+                        inet_ntop(AF_INET, &s->sin_addr, ipstr, sizeof ipstr);
+                    } else { // AF_INET6
+                        struct sockaddr_in6 *s = (struct sockaddr_in6 *)&addr;
+                        port = ntohs(s->sin6_port);
+                        inet_ntop(AF_INET6, &s->sin6_addr, ipstr, sizeof ipstr);
+                    }
+
+                    iFuseRodsClientLog(LOG_DEBUG, "_timeoutChecker: kill connection (Local IP address): %s:%d\n", ipstr, port);
+
+                    // kill the connection
+                    shutdown(oper->conn->sock, 2);
+                }
+            }
+            
+            pthread_rwlock_unlock(&g_RodsClientAPILock);
+        }
+        
+        iFuseRodsClientLog(LOG_DEBUG, "_timeoutChecker: wait next wakeup for %d sec\n", nextCheckTime);
+        sleep(nextCheckTime);
+        iFuseRodsClientLog(LOG_DEBUG, "_timeoutChecker: wakeup\n");
     }
     
     return NULL;
@@ -103,17 +134,17 @@ static iFuseRodsClientOperation_t *_startOperationTimeout(rcComm_t *conn) {
     oper->start = iFuseLibGetCurrentTime();
     oper->conn = conn;
     
-    pthread_mutex_lock(&g_RodsClientAPILock);
+    pthread_rwlock_wrlock(&g_RodsClientAPILock);
     g_Operations.push_back(oper);
-    pthread_mutex_unlock(&g_RodsClientAPILock);
+    pthread_rwlock_unlock(&g_RodsClientAPILock);
     
     return oper;
 }
 
 static void _endOperationTimeout(iFuseRodsClientOperation_t *oper) {
-    pthread_mutex_lock(&g_RodsClientAPILock);
+    pthread_rwlock_wrlock(&g_RodsClientAPILock);
     g_Operations.remove(oper);
-    pthread_mutex_unlock(&g_RodsClientAPILock);
+    pthread_rwlock_unlock(&g_RodsClientAPILock);
     
     free(oper);
 }
@@ -127,9 +158,8 @@ void iFuseRodsClientInit() {
         g_RodsapiTimeoutSec = iFuseLibGetOption()->rodsapiTimeoutSec;
     }
    
-    pthread_mutexattr_init(&g_RodsClientAPILockAttr);
-    pthread_mutexattr_settype(&g_RodsClientAPILockAttr, PTHREAD_MUTEX_RECURSIVE);
-    pthread_mutex_init(&g_RodsClientAPILock, &g_RodsClientAPILockAttr);
+    pthread_rwlockattr_init(&g_RodsClientAPILockAttr);
+    pthread_rwlock_init(&g_RodsClientAPILock, &g_RodsClientAPILockAttr);
     
     g_TimeoutCheckerRunning = true;
     
@@ -144,8 +174,8 @@ void iFuseRodsClientDestroy() {
     
     pthread_join(g_TimeoutChecker, NULL);
     
-    pthread_mutex_destroy(&g_RodsClientAPILock);
-    pthread_mutexattr_destroy(&g_RodsClientAPILockAttr);
+    pthread_rwlock_destroy(&g_RodsClientAPILock);
+    pthread_rwlockattr_destroy(&g_RodsClientAPILockAttr);
 }
 
 int iFuseRodsClientReadMsgError(int status) {

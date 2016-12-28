@@ -15,6 +15,8 @@ typedef struct IFuseExtendedOpt {
 
 typedef struct IFuseOpt {
     char *program;
+    bool help;
+    bool version;
     bool debug;
     bool nonempty;
     bool foreground;

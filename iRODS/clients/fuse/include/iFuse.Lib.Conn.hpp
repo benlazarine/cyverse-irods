@@ -23,8 +23,8 @@ typedef struct IFuseConn {
     unsigned long connId;
     int type;
     rcComm_t *conn;
-    time_t actTime;
-    time_t lastKeepAliveTime;
+    time_t lastActTime;
+    time_t lastUseTime;
     int inuseCnt;
     pthread_mutexattr_t lockAttr;
     pthread_mutex_t lock;
@@ -46,6 +46,7 @@ void iFuseConnInit();
 void iFuseConnDestroy();
 int iFuseConnGetAndUse(iFuseConn_t **iFuseConn, int connType);
 int iFuseConnUnuse(iFuseConn_t *iFuseConn);
+void iFuseConnUpdateLastActTime(iFuseConn_t *iFuseConn);
 int iFuseConnReconnect(iFuseConn_t *iFuseConn);
 void iFuseConnLock(iFuseConn_t *iFuseConn);
 void iFuseConnUnlock(iFuseConn_t *iFuseConn);

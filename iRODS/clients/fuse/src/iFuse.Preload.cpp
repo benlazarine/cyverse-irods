@@ -19,8 +19,8 @@
 #include "iFuse.Lib.RodsClientAPI.hpp"
 #include "miscUtil.h"
 
-static pthread_mutexattr_t g_PreloadLockAttr;
-static pthread_mutex_t g_PreloadLock;
+static pthread_rwlockattr_t g_PreloadLockAttr;
+static pthread_rwlock_t g_PreloadLock;
 
 static std::map<unsigned long, iFusePreload_t*> g_PreloadMap;
 
@@ -41,9 +41,8 @@ static int _newPreloadPBlock(const char *iRodsPath, iFusePreloadPBlock_t **iFuse
     tmpIFusePreloadPBlock->fd = NULL;
     tmpIFusePreloadPBlock->status = IFUSE_PRELOAD_PBLOCK_STATUS_INIT;
 
-    pthread_mutexattr_init(&tmpIFusePreloadPBlock->lockAttr);
-    pthread_mutexattr_settype(&tmpIFusePreloadPBlock->lockAttr, PTHREAD_MUTEX_RECURSIVE);
-    pthread_mutex_init(&tmpIFusePreloadPBlock->lock, &tmpIFusePreloadPBlock->lockAttr);
+    pthread_rwlockattr_init(&tmpIFusePreloadPBlock->lockAttr);
+    pthread_rwlock_init(&tmpIFusePreloadPBlock->lock, &tmpIFusePreloadPBlock->lockAttr);
 
     *iFusePreloadPBlock = tmpIFusePreloadPBlock;
     return 0;
@@ -68,9 +67,8 @@ static int _newPreload(iFusePreload_t **iFusePreload) {
         return SYS_MALLOC_ERR;
     }
 
-    pthread_mutexattr_init(&tmpIFusePreload->lockAttr);
-    pthread_mutexattr_settype(&tmpIFusePreload->lockAttr, PTHREAD_MUTEX_RECURSIVE);
-    pthread_mutex_init(&tmpIFusePreload->lock, &tmpIFusePreload->lockAttr);
+    pthread_rwlockattr_init(&tmpIFusePreload->lockAttr);
+    pthread_rwlock_init(&tmpIFusePreload->lock, &tmpIFusePreload->lockAttr);
 
     *iFusePreload = tmpIFusePreload;
     return 0;
@@ -86,16 +84,16 @@ static int _freePreloadPBlock(iFusePreloadPBlock_t *iFusePreloadPBlock) {
         if(!iFusePreloadPBlock->threadJoined) {
             pthread_join(iFusePreloadPBlock->thread, NULL);
 
-            pthread_mutex_lock(&iFusePreloadPBlock->lock);
+            pthread_rwlock_wrlock(&iFusePreloadPBlock->lock);
 
             // set to joined
             iFusePreloadPBlock->threadJoined = true;
 
-            pthread_mutex_unlock(&iFusePreloadPBlock->lock);
+            pthread_rwlock_unlock(&iFusePreloadPBlock->lock);
         }
     }
 
-    pthread_mutex_lock(&iFusePreloadPBlock->lock);
+    pthread_rwlock_wrlock(&iFusePreloadPBlock->lock);
 
     if(iFusePreloadPBlock->fd != NULL) {
         iFuseBufferedFsClose(iFusePreloadPBlock->fd);
@@ -104,10 +102,10 @@ static int _freePreloadPBlock(iFusePreloadPBlock_t *iFusePreloadPBlock) {
 
     iFusePreloadPBlock->blockID = 0;
 
-    pthread_mutex_unlock(&iFusePreloadPBlock->lock);
+    pthread_rwlock_unlock(&iFusePreloadPBlock->lock);
 
-    pthread_mutex_destroy(&iFusePreloadPBlock->lock);
-    pthread_mutexattr_destroy(&iFusePreloadPBlock->lockAttr);
+    pthread_rwlock_destroy(&iFusePreloadPBlock->lock);
+    pthread_rwlockattr_destroy(&iFusePreloadPBlock->lockAttr);
 
     free(iFusePreloadPBlock);
     return 0;
@@ -134,8 +132,8 @@ static int _freePreload(iFusePreload_t *iFusePreload) {
         iFusePreload->iRodsPath = NULL;
     }
 
-    pthread_mutex_destroy(&iFusePreload->lock);
-    pthread_mutexattr_destroy(&iFusePreload->lockAttr);
+    pthread_rwlock_destroy(&iFusePreload->lock);
+    pthread_rwlockattr_destroy(&iFusePreload->lockAttr);
 
     free(iFusePreload);
     return 0;
@@ -145,7 +143,7 @@ static int _releaseAllPreload() {
     std::map<unsigned long, iFusePreload_t*>::iterator it_preloadmap;
     iFusePreload_t *iFusePreload = NULL;
 
-    pthread_mutex_lock(&g_PreloadLock);
+    pthread_rwlock_wrlock(&g_PreloadLock);
 
     // release all get
     while(!g_PreloadMap.empty()) {
@@ -158,7 +156,7 @@ static int _releaseAllPreload() {
         }
     }
 
-    pthread_mutex_unlock(&g_PreloadLock);
+    pthread_rwlock_unlock(&g_PreloadLock);
     return 0;
 }
 
@@ -179,9 +177,9 @@ static void* _preloadTask(void* param) {
     if(blockBuffer == NULL) {
         free(iFusePreloadThreadParam);
 
-        pthread_mutex_lock(&iFusePreloadPBlock->lock);
+        pthread_rwlock_wrlock(&iFusePreloadPBlock->lock);
         iFusePreloadPBlock->status = IFUSE_PRELOAD_PBLOCK_STATUS_TASK_FAILED;
-        pthread_mutex_unlock(&iFusePreloadPBlock->lock);
+        pthread_rwlock_unlock(&iFusePreloadPBlock->lock);
         return NULL;
     }
 
@@ -195,15 +193,15 @@ static void* _preloadTask(void* param) {
             free(blockBuffer);
             free(iFusePreloadThreadParam);
 
-            pthread_mutex_lock(&iFusePreloadPBlock->lock);
+            pthread_rwlock_wrlock(&iFusePreloadPBlock->lock);
             iFusePreloadPBlock->status = IFUSE_PRELOAD_PBLOCK_STATUS_TASK_FAILED;
-            pthread_mutex_unlock(&iFusePreloadPBlock->lock);
+            pthread_rwlock_unlock(&iFusePreloadPBlock->lock);
             return NULL;
         }
 
-        pthread_mutex_lock(&iFusePreloadPBlock->lock);
+        pthread_rwlock_wrlock(&iFusePreloadPBlock->lock);
         iFusePreloadPBlock->fd = iFuseFd;
-        pthread_mutex_unlock(&iFusePreloadPBlock->lock);
+        pthread_rwlock_unlock(&iFusePreloadPBlock->lock);
     }
 
     status = iFuseBufferedFsReadBlock(iFusePreloadPBlock->fd, blockBuffer, iFusePreloadPBlock->blockID);
@@ -213,17 +211,17 @@ static void* _preloadTask(void* param) {
         free(blockBuffer);
         free(iFusePreloadThreadParam);
 
-        pthread_mutex_lock(&iFusePreloadPBlock->lock);
+        pthread_rwlock_wrlock(&iFusePreloadPBlock->lock);
         iFusePreloadPBlock->status = IFUSE_PRELOAD_PBLOCK_STATUS_TASK_FAILED;
-        pthread_mutex_unlock(&iFusePreloadPBlock->lock);
+        pthread_rwlock_unlock(&iFusePreloadPBlock->lock);
         return NULL;
     }
 
     free(blockBuffer);
 
-    pthread_mutex_lock(&iFusePreloadPBlock->lock);
+    pthread_rwlock_wrlock(&iFusePreloadPBlock->lock);
     iFusePreloadPBlock->status = IFUSE_PRELOAD_PBLOCK_STATUS_COMPLETED;
-    pthread_mutex_unlock(&iFusePreloadPBlock->lock);
+    pthread_rwlock_unlock(&iFusePreloadPBlock->lock);
 
     free(iFusePreloadThreadParam);
 
@@ -266,11 +264,11 @@ int _startPreload(iFusePreload_t *iFusePreload, unsigned int blockID, iFuseFd_t 
         return -1;
     }
 
-    pthread_mutex_lock(&iFusePreload->lock);
+    pthread_rwlock_wrlock(&iFusePreload->lock);
 
     iFusePreload->pblocks->push_back(iFusePreloadPBlock);
 
-    pthread_mutex_unlock(&iFusePreload->lock);
+    pthread_rwlock_unlock(&iFusePreload->lock);
     return status;
 }
 
@@ -294,7 +292,7 @@ int _readPreload(iFusePreload_t *iFusePreload, char *buf, unsigned int blockID) 
 
     bzero(pblockExistance, g_preloadNumBlocks * sizeof(bool));
 
-    pthread_mutex_lock(&iFusePreload->lock);
+    pthread_rwlock_wrlock(&iFusePreload->lock);
 
     // check loaded
     for(it_preloadpblock=iFusePreload->pblocks->begin();it_preloadpblock!=iFusePreload->pblocks->end();it_preloadpblock++) {
@@ -332,12 +330,12 @@ int _readPreload(iFusePreload_t *iFusePreload, char *buf, unsigned int blockID) 
 
                 pthread_join(iFusePreloadPBlock->thread, NULL);
 
-                pthread_mutex_lock(&iFusePreloadPBlock->lock);
+                pthread_rwlock_wrlock(&iFusePreloadPBlock->lock);
 
                 // set to joined
                 iFusePreloadPBlock->threadJoined = true;
 
-                pthread_mutex_unlock(&iFusePreloadPBlock->lock);
+                pthread_rwlock_unlock(&iFusePreloadPBlock->lock);
             }
         }
     }
@@ -361,6 +359,8 @@ int _readPreload(iFusePreload_t *iFusePreload, char *buf, unsigned int blockID) 
         }
     }
 
+    pthread_rwlock_unlock(&iFusePreload->lock);
+
     if(!hasBlock) {
         iFuseFd = NULL;
         if(!recycleList.empty()) {
@@ -377,6 +377,8 @@ int _readPreload(iFusePreload_t *iFusePreload, char *buf, unsigned int blockID) 
         _startPreload(iFusePreload, blockID, iFuseFd);
     }
 
+    pthread_rwlock_rdlock(&iFusePreload->lock);
+
     for(it_preloadpblock=iFusePreload->pblocks->begin();it_preloadpblock!=iFusePreload->pblocks->end();it_preloadpblock++) {
         iFusePreloadPBlock = *it_preloadpblock;
 
@@ -391,18 +393,18 @@ int _readPreload(iFusePreload_t *iFusePreload, char *buf, unsigned int blockID) 
 
                     pthread_join(iFusePreloadPBlock->thread, NULL);
 
-                    pthread_mutex_lock(&iFusePreloadPBlock->lock);
+                    pthread_rwlock_wrlock(&iFusePreloadPBlock->lock);
 
                     // set to joined
                     iFusePreloadPBlock->threadJoined = true;
 
-                    pthread_mutex_unlock(&iFusePreloadPBlock->lock);
+                    pthread_rwlock_unlock(&iFusePreloadPBlock->lock);
                 }
             }
 
             if(iFusePreloadPBlock->status == IFUSE_PRELOAD_PBLOCK_STATUS_COMPLETED &&
                     iFusePreloadPBlock->threadJoined) {
-                pthread_mutex_lock(&iFusePreloadPBlock->lock);
+                pthread_rwlock_rdlock(&iFusePreloadPBlock->lock);
 
                 if(iFusePreloadPBlock->fd != NULL) {
                     iFuseRodsClientLog(LOG_DEBUG, "_readPreload: reading a block from preloaded data of %s, blockID: %u", iFusePreload->iRodsPath, blockID);
@@ -411,12 +413,14 @@ int _readPreload(iFusePreload_t *iFusePreload, char *buf, unsigned int blockID) 
                     readSize = -1;
                 }
 
-                pthread_mutex_unlock(&iFusePreloadPBlock->lock);
+                pthread_rwlock_unlock(&iFusePreloadPBlock->lock);
             } else {
                 readSize = -1;
             }
         }
     }
+    
+    pthread_rwlock_unlock(&iFusePreload->lock);
 
     for(i=0;i<g_preloadNumBlocks;i++) {
         if(!pblockExistance[i]) {
@@ -445,7 +449,6 @@ int _readPreload(iFusePreload_t *iFusePreload, char *buf, unsigned int blockID) 
     }
 
     free(pblockExistance);
-    pthread_mutex_unlock(&iFusePreload->lock);
     return readSize;
 }
 
@@ -457,9 +460,8 @@ void iFusePreloadInit() {
         g_preloadNumBlocks = iFuseLibGetOption()->preloadNumBlocks;
     }
     
-    pthread_mutexattr_init(&g_PreloadLockAttr);
-    pthread_mutexattr_settype(&g_PreloadLockAttr, PTHREAD_MUTEX_RECURSIVE);
-    pthread_mutex_init(&g_PreloadLock, &g_PreloadLockAttr);
+    pthread_rwlockattr_init(&g_PreloadLockAttr);
+    pthread_rwlock_init(&g_PreloadLock, &g_PreloadLockAttr);
 }
 
 /*
@@ -468,8 +470,8 @@ void iFusePreloadInit() {
 void iFusePreloadDestroy() {
     _releaseAllPreload();
 
-    pthread_mutex_destroy(&g_PreloadLock);
-    pthread_mutexattr_destroy(&g_PreloadLockAttr);
+    pthread_rwlock_destroy(&g_PreloadLock);
+    pthread_rwlockattr_destroy(&g_PreloadLockAttr);
 }
 
 /*
@@ -505,11 +507,11 @@ int iFusePreloadOpen(const char *iRodsPath, iFuseFd_t **iFuseFd, int openFlag) {
             }
         }
 
-        pthread_mutex_lock(&g_PreloadLock);
+        pthread_rwlock_wrlock(&g_PreloadLock);
 
         g_PreloadMap[(*iFuseFd)->fdId] = iFusePreload;
 
-        pthread_mutex_unlock(&g_PreloadLock);
+        pthread_rwlock_unlock(&g_PreloadLock);
     }
 
     return 0;
@@ -542,18 +544,20 @@ int iFusePreloadClose(iFuseFd_t *iFuseFd) {
 
     free(iRodsPath);
 
-    pthread_mutex_lock(&g_PreloadLock);
+    pthread_rwlock_wrlock(&g_PreloadLock);
 
     it_preloadmap = g_PreloadMap.find(fdId);
     if(it_preloadmap != g_PreloadMap.end()) {
         // has it
         iFusePreload = it_preloadmap->second;
         g_PreloadMap.erase(it_preloadmap);
-
-        _freePreload(iFusePreload);
     }
 
-    pthread_mutex_unlock(&g_PreloadLock);
+    pthread_rwlock_unlock(&g_PreloadLock);
+
+    if(iFusePreload != NULL) {
+        _freePreload(iFusePreload);
+    }
 
     return status;
 }
@@ -575,7 +579,7 @@ int iFusePreloadRead(iFuseFd_t *iFuseFd, char *buf, off_t off, size_t size) {
 
     iFuseRodsClientLog(LOG_DEBUG, "iFusePreloadRead: %s, offset: %lld, size: %lld", iFuseFd->iRodsPath, (long long)off, (long long)size);
 
-    pthread_mutex_lock(&g_PreloadLock);
+    pthread_rwlock_rdlock(&g_PreloadLock);
 
     it_preloadmap = g_PreloadMap.find(iFuseFd->fdId);
     if(it_preloadmap != g_PreloadMap.end()) {
@@ -600,12 +604,12 @@ int iFusePreloadRead(iFuseFd_t *iFuseFd, char *buf, off_t off, size_t size) {
                 if (status < 0) {
                     iFuseRodsClientLogError(LOG_ERROR, status, "iFusePreloadRead: iFuseBufferedFsRead of %s error, status = %d",
                             iFuseFd->iRodsPath, status);
-                    pthread_mutex_unlock(&g_PreloadLock);
+                    pthread_rwlock_unlock(&g_PreloadLock);
                     free(blockBuffer);
                     return -ENOENT;
                 }
 
-                pthread_mutex_unlock(&g_PreloadLock);
+                pthread_rwlock_unlock(&g_PreloadLock);
                 free(blockBuffer);
                 return status;
             } else if(status == 0) {
@@ -637,13 +641,13 @@ int iFusePreloadRead(iFuseFd_t *iFuseFd, char *buf, off_t off, size_t size) {
             }
         }
 
-        pthread_mutex_unlock(&g_PreloadLock);
+        pthread_rwlock_unlock(&g_PreloadLock);
         free(blockBuffer);
         return readSize;
     }
 
     // no preloaded data
-    pthread_mutex_unlock(&g_PreloadLock);
+    pthread_rwlock_unlock(&g_PreloadLock);
 
     free(blockBuffer);
 
