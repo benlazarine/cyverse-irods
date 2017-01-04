@@ -34,7 +34,6 @@ void iFuseLibInit() {
     iFuseConnInit();
     
     iFuseFdInit();
-    iFuseDirInit();
     
     iFuseMetadataCacheInit();
 }
@@ -42,7 +41,6 @@ void iFuseLibInit() {
 void iFuseLibDestroy() {
     iFuseMetadataCacheDestroy();
     
-    iFuseDirDestroy();
     iFuseFdDestroy();
     
     iFuseConnDestroy();
