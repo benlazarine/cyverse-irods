@@ -595,16 +595,13 @@ int iFuseFsWrite(iFuseFd_t *iFuseFd, const char *buf, off_t off, size_t size) {
 
 int iFuseFsFlush(iFuseFd_t *iFuseFd) {
     int status = 0;
-    iFuseConn_t *iFuseConn = NULL;
-
+    
     assert(iFuseFd != NULL);
     assert(iFuseFd->iRodsPath != NULL);
     assert(iFuseFd->fd > 0);
 
     iFuseRodsClientLog(LOG_DEBUG, "iFuseFsFlush: %s", iFuseFd->iRodsPath);
     
-    iFuseConn = iFuseFd->conn;
-
     status = iFuseFdReopen(iFuseFd);
     if (status < 0) {
         iFuseRodsClientLogError(LOG_ERROR, status, "iFuseFsClose: iFuseFdReopen of %s error, status = %d",

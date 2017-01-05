@@ -24,25 +24,19 @@ typedef struct IFuseRodsClientOperation {
 static pthread_rwlock_t g_RodsClientAPILock;
 static pthread_rwlockattr_t g_RodsClientAPILockAttr;
 static std::list<iFuseRodsClientOperation_t*> g_Operations;
-static pthread_t g_TimeoutChecker;
-static bool g_TimeoutCheckerRunning;
 
 static int g_RodsapiTimeoutSec = IFUSE_RODSCLIENTAPI_TIMEOUT_SEC;
+static time_t g_LastRodsapiTimeoutCheck = 0;
 
-static void* _timeoutChecker(void* param) {
+static void _timeoutChecker() {
     std::list<iFuseRodsClientOperation_t*>::iterator it_oper;
     std::list<iFuseRodsClientOperation_t*> removeList;
     iFuseRodsClientOperation_t *oper;
     time_t currentTime;
     
-    UNUSED(param);
+    bool hasTimeout = false;
     
-    iFuseRodsClientLog(LOG_DEBUG, "_timeoutChecker: timeout checker is running");
-    
-    while(g_TimeoutCheckerRunning) {
-        bool hasTimeout = false;
-        int nextCheckTime = g_RodsapiTimeoutSec;
-        
+    if(iFuseLibDiffTimeSec(iFuseLibGetCurrentTime(), g_LastRodsapiTimeoutCheck) > g_RodsapiTimeoutSec / 2) {
         pthread_rwlock_rdlock(&g_RodsClientAPILock);
         
         currentTime = iFuseLibGetCurrentTime();
@@ -54,11 +48,6 @@ static void* _timeoutChecker(void* param) {
             if(iFuseLibDiffTimeSec(currentTime, oper->start) >= g_RodsapiTimeoutSec) {
                 hasTimeout = true;
                 break;
-            } else {
-                int remainToTimedout = g_RodsapiTimeoutSec - iFuseLibDiffTimeSec(currentTime, oper->start);
-                if(nextCheckTime > remainToTimedout) {
-                    nextCheckTime = remainToTimedout;
-                }
             }
         }
         
@@ -73,11 +62,6 @@ static void* _timeoutChecker(void* param) {
                 
                 if(iFuseLibDiffTimeSec(currentTime, oper->start) >= g_RodsapiTimeoutSec) {
                     removeList.push_back(oper);
-                } else {
-                    int remainToTimedout = g_RodsapiTimeoutSec - iFuseLibDiffTimeSec(currentTime, oper->start);
-                    if(nextCheckTime > remainToTimedout) {
-                        nextCheckTime = remainToTimedout;
-                    }
                 }
             }
             
@@ -117,12 +101,8 @@ static void* _timeoutChecker(void* param) {
             pthread_rwlock_unlock(&g_RodsClientAPILock);
         }
         
-        iFuseRodsClientLog(LOG_DEBUG, "_timeoutChecker: wait next wakeup for %d sec\n", nextCheckTime);
-        sleep(nextCheckTime);
-        iFuseRodsClientLog(LOG_DEBUG, "_timeoutChecker: wakeup\n");
+        g_LastRodsapiTimeoutCheck = iFuseLibGetCurrentTime();
     }
-    
-    return NULL;
 }
 
 static iFuseRodsClientOperation_t *_startOperationTimeout(rcComm_t *conn) {
@@ -161,18 +141,14 @@ void iFuseRodsClientInit() {
     pthread_rwlockattr_init(&g_RodsClientAPILockAttr);
     pthread_rwlock_init(&g_RodsClientAPILock, &g_RodsClientAPILockAttr);
     
-    g_TimeoutCheckerRunning = true;
-    
-    pthread_create(&g_TimeoutChecker, NULL, _timeoutChecker, NULL);
+    iFuseLibSetTimerTickHandler(_timeoutChecker);
 }
 
 /*
  * Destroy iFuse Rods Client
  */
 void iFuseRodsClientDestroy() {
-    g_TimeoutCheckerRunning = false;
-    
-    pthread_join(g_TimeoutChecker, NULL);
+    iFuseLibUnsetTimerTickHandler(_timeoutChecker);
     
     pthread_rwlock_destroy(&g_RodsClientAPILock);
     pthread_rwlockattr_destroy(&g_RodsClientAPILockAttr);

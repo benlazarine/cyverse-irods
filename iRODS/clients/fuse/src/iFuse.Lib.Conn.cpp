@@ -24,9 +24,6 @@ static std::map<unsigned long, iFuseConn_t*> g_InUseOnetimeuseConn;
 static iFuseConn_t* g_FreeShortopConn;
 static std::list<iFuseConn_t*> g_FreeConn;
 
-static pthread_t g_FreeConnCollector;
-static bool g_FreeConnCollectorRunning;
-
 static pthread_rwlockattr_t g_IDGenLockAttr;
 static pthread_rwlock_t g_IDGenLock;
 
@@ -36,6 +33,8 @@ static int g_MaxConnNum = IFUSE_MAX_NUM_CONN;
 static int g_ConnTimeoutSec = IFUSE_FREE_CONN_TIMEOUT_SEC;
 static int g_ConnKeepAliveSec = IFUSE_FREE_CONN_KEEPALIVE_SEC;
 static int g_ConnCheckIntervalSec = IFUSE_FREE_CONN_CHECK_INTERVAL_SEC;
+
+static time_t g_LastConnCheck = 0;
 
 /*
  * Lock order :
@@ -238,18 +237,14 @@ static void _keepAlive(iFuseConn_t *iFuseConn) {
     pthread_rwlock_unlock(&iFuseConn->lock);
 }
 
-static void* _connChecker(void* param) {
+static void _connChecker() {
     std::list<iFuseConn_t*> removeList;
     std::list<iFuseConn_t*>::iterator it_conn;
     std::map<unsigned long, iFuseConn_t*>::iterator it_connmap;
     iFuseConn_t *iFuseConn;
     int i;
 
-    UNUSED(param);
-
-    iFuseRodsClientLog(LOG_DEBUG, "_connChecker: collector is running");
-
-    while(g_FreeConnCollectorRunning) {
+    if(iFuseLibDiffTimeSec(iFuseLibGetCurrentTime(), g_LastConnCheck) > g_ConnCheckIntervalSec) {
         pthread_rwlock_rdlock(&g_ConnectedConnLock);
 
         for(i=0;i<g_MaxConnNum;i++) {
@@ -318,13 +313,9 @@ static void* _connChecker(void* param) {
         }
 
         pthread_rwlock_unlock(&g_ConnectedConnLock);
-
-        sleep(g_ConnCheckIntervalSec);
+        
+        g_LastConnCheck = iFuseLibGetCurrentTime();
     }
-
-    iFuseRodsClientLog(LOG_DEBUG, "_connChecker: collector stopped");
-
-    return NULL;
 }
 
 int iFuseConnTest() {
@@ -412,22 +403,18 @@ void iFuseConnInit() {
     pthread_rwlockattr_init(&g_IDGenLockAttr);
     pthread_rwlock_init(&g_IDGenLock, &g_IDGenLockAttr);
 
-    g_FreeConnCollectorRunning = true;
-
-    pthread_create(&g_FreeConnCollector, NULL, _connChecker, NULL);
+    iFuseLibSetTimerTickHandler(_connChecker);
 }
 
 /*
  * Destroy Conn Manager
  */
 void iFuseConnDestroy() {
+    iFuseLibUnsetTimerTickHandler(_connChecker);
+    
     g_ConnIDGen = 0;
 
-    g_FreeConnCollectorRunning = false;
-
     _freeAllConn();
-
-    pthread_join(g_FreeConnCollector, NULL);
 
     pthread_rwlock_destroy(&g_ConnectedConnLock);
     pthread_rwlockattr_destroy(&g_ConnectedConnLockAttr);

@@ -36,6 +36,8 @@ typedef struct IFuseOpt {
     iFuseExtendedOpt_t *extendedOpts;
 } iFuseOpt_t;
 
+typedef void (*iFuseLibTimerHandlerCB) ();
+
 rodsEnv *iFuseLibGetRodsEnv();
 void iFuseLibSetRodsEnv(rodsEnv *pEnv);
 iFuseOpt_t *iFuseLibGetOption();
@@ -44,5 +46,7 @@ void iFuseLibSetOption(iFuseOpt_t *pOpt);
 void iFuseLibInit();
 void iFuseLibDestroy();
 
+void iFuseLibSetTimerTickHandler(iFuseLibTimerHandlerCB callback);
+void iFuseLibUnsetTimerTickHandler(iFuseLibTimerHandlerCB callback);
 
 #endif	/* IFUSE_LIB_HPP */
