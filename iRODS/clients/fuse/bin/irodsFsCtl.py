@@ -1,5 +1,8 @@
 #! /usr/bin/env python
 
+# This code is written by Illyoung Choi (iychoi@email.arizona.edu)
+# funded by iPlantCollaborative (www.iplantcollaborative.org).
+
 import os
 import os.path
 import sys

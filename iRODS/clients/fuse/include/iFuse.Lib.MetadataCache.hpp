@@ -1,7 +1,5 @@
-/*** Copyright (c), The Regents of the University of California            ***
- *** For more information please refer to files in the COPYRIGHT directory ***/
-/*** This code is rewritten by Illyoung Choi (iychoi@email.arizona.edu)    ***
- *** funded by iPlantCollaborative (www.iplantcollaborative.org).          ***/
+/*** This code is written by Illyoung Choi (iychoi@email.arizona.edu)    ***
+ *** funded by iPlantCollaborative (www.iplantcollaborative.org).        ***/
 #ifndef IFUSE_LIB_METADATACACHE_HPP
 #define IFUSE_LIB_METADATACACHE_HPP
 
