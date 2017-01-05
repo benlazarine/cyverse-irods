@@ -237,6 +237,7 @@ int iFuseFsOpen(const char *iRodsPath, iFuseFd_t **iFuseFd, int openFlag) {
     // clear stat cache
     if(g_CacheMetadata) {
         if((openFlag & O_ACCMODE) != O_RDONLY) {
+            iFuseRodsClientLog(LOG_DEBUG, "iFuseFsOpen: iFuseMetadataCacheRemoveStat - %s", iRodsPath);
             iFuseMetadataCacheRemoveStat(iRodsPath);
         }
     }
@@ -248,6 +249,7 @@ int iFuseFsClose(iFuseFd_t *iFuseFd) {
     int status = 0;
     iFuseConn_t *iFuseConn = NULL;
     char *iRodsPath;
+    int openFlag;
 
     assert(iFuseFd != NULL);
     assert(iFuseFd->iRodsPath != NULL);
@@ -258,6 +260,7 @@ int iFuseFsClose(iFuseFd_t *iFuseFd) {
     iFuseConn = iFuseFd->conn;
 
     iRodsPath = strdup(iFuseFd->iRodsPath);
+    openFlag = iFuseFd->openFlag;
 
     status = iFuseFdClose(iFuseFd);
     if (status < 0) {
@@ -267,15 +270,17 @@ int iFuseFsClose(iFuseFd_t *iFuseFd) {
         return -ENOENT;
     }
 
-    free(iRodsPath);
     iFuseConnUnuse(iFuseConn);
     
     // clear stat cache
     if(g_CacheMetadata) {
-        if((iFuseFd->openFlag & O_ACCMODE) != O_RDONLY) {
-            iFuseMetadataCacheRemoveStat(iFuseFd->iRodsPath);
+        if((openFlag & O_ACCMODE) != O_RDONLY) {
+            iFuseRodsClientLog(LOG_DEBUG, "iFuseFsClose: iFuseMetadataCacheRemoveStat - %s", iRodsPath);
+            iFuseMetadataCacheRemoveStat(iRodsPath);
         }
     }
+
+    free(iRodsPath);
     
     return 0;
 }
@@ -611,6 +616,7 @@ int iFuseFsFlush(iFuseFd_t *iFuseFd) {
     
     // clear stat cache
     if(g_CacheMetadata) {
+        iFuseRodsClientLog(LOG_DEBUG, "iFuseFsFlush: iFuseMetadataCacheRemoveStat - %s", iFuseFd->iRodsPath);
         iFuseMetadataCacheRemoveStat(iFuseFd->iRodsPath);
     }
 
@@ -727,9 +733,11 @@ int iFuseFsCreate(const char *iRodsPath, mode_t mode) {
     
     // clear stat cache
     if(g_CacheMetadata) {
+        iFuseRodsClientLog(LOG_DEBUG, "iFuseFsCreate: iFuseMetadataCacheRemoveStat - %s", iRodsPath);
         iFuseMetadataCacheRemoveStat(iRodsPath);
         
         // Add an entry to parent dir
+        iFuseRodsClientLog(LOG_DEBUG, "iFuseFsCreate: iFuseMetadataCacheAddDirEntryIfFresh2 - %s", iRodsPath);
         iFuseMetadataCacheAddDirEntryIfFresh2(iRodsPath);
     }
     
@@ -803,9 +811,11 @@ int iFuseFsUnlink(const char *iRodsPath) {
     
     // clear stat cache
     if(g_CacheMetadata) {
+        iFuseRodsClientLog(LOG_DEBUG, "iFuseFsUnlink: iFuseMetadataCacheRemoveStat - %s", iRodsPath);
         iFuseMetadataCacheRemoveStat(iRodsPath);
         
         // remove file from parent dir
+        iFuseRodsClientLog(LOG_DEBUG, "iFuseFsUnlink: iFuseMetadataCacheRemoveDirEntry2 - %s", iRodsPath);
         iFuseMetadataCacheRemoveDirEntry2(iRodsPath);
     }
     
@@ -1054,10 +1064,13 @@ int iFuseFsMakeDir(const char *iRodsPath, mode_t mode) {
     
     // clear stat cache
     if(g_CacheMetadata) {
+        iFuseRodsClientLog(LOG_DEBUG, "iFuseFsMakeDir: iFuseMetadataCacheRemoveStat - %s", iRodsPath);
         iFuseMetadataCacheRemoveStat(iRodsPath);
         
         // add dir
+        iFuseRodsClientLog(LOG_DEBUG, "iFuseFsMakeDir: iFuseMetadataCacheRemoveDir - %s", iRodsPath);
         iFuseMetadataCacheRemoveDir(iRodsPath);
+        iFuseRodsClientLog(LOG_DEBUG, "iFuseFsMakeDir: iFuseMetadataCacheAddDirEntryIfFresh2 - %s", iRodsPath);
         iFuseMetadataCacheAddDirEntryIfFresh2(iRodsPath);
     }
     
@@ -1147,10 +1160,13 @@ int iFuseFsRemoveDir(const char *iRodsPath) {
     
     // clear stat cache
     if(g_CacheMetadata) {
+        iFuseRodsClientLog(LOG_DEBUG, "iFuseFsRemoveDir: iFuseMetadataCacheRemoveStat - %s", iRodsPath);
         iFuseMetadataCacheRemoveStat(iRodsPath);
         
         // remove dir
+        iFuseRodsClientLog(LOG_DEBUG, "iFuseFsRemoveDir: iFuseMetadataCacheRemoveDir - %s", iRodsPath);
         iFuseMetadataCacheRemoveDir(iRodsPath);
+        iFuseRodsClientLog(LOG_DEBUG, "iFuseFsRemoveDir: iFuseMetadataCacheRemoveDirEntry2 - %s", iRodsPath);
         iFuseMetadataCacheRemoveDirEntry2(iRodsPath);
     }
     
@@ -1227,15 +1243,21 @@ int iFuseFsRename(const char *iRodsFromPath, const char *iRodsToPath) {
     
     // clear stat cache
     if(g_CacheMetadata) {
+        iFuseRodsClientLog(LOG_DEBUG, "iFuseFsRename: iFuseMetadataCacheRemoveStat - %s", iRodsFromPath);
         iFuseMetadataCacheRemoveStat(iRodsFromPath);
+        iFuseRodsClientLog(LOG_DEBUG, "iFuseFsRename: iFuseMetadataCacheRemoveStat - %s", iRodsToPath);
         iFuseMetadataCacheRemoveStat(iRodsToPath);
         
         // perhaps given path can be a directory
+        iFuseRodsClientLog(LOG_DEBUG, "iFuseFsRename: iFuseMetadataCacheRemoveDir - %s", iRodsFromPath);
         iFuseMetadataCacheRemoveDir(iRodsFromPath);
+        iFuseRodsClientLog(LOG_DEBUG, "iFuseFsRename: iFuseMetadataCacheRemoveDir - %s", iRodsToPath);
         iFuseMetadataCacheRemoveDir(iRodsToPath);
         
         // resync parent dir
+        iFuseRodsClientLog(LOG_DEBUG, "iFuseFsRename: iFuseMetadataCacheRemoveDirEntry2 - %s", iRodsFromPath);
         iFuseMetadataCacheRemoveDirEntry2(iRodsFromPath);
+        iFuseRodsClientLog(LOG_DEBUG, "iFuseFsRename: iFuseMetadataCacheAddDirEntryIfFresh2 - %s", iRodsToPath);
         iFuseMetadataCacheAddDirEntryIfFresh2(iRodsToPath);
     }
     
@@ -1301,6 +1323,7 @@ int iFuseFsTruncate(const char *iRodsPath, off_t size) {
     
     // clear stat cache
     if(g_CacheMetadata) {
+        iFuseRodsClientLog(LOG_DEBUG, "iFuseFsTruncate: iFuseMetadataCacheRemoveStat - %s", iRodsPath);
         iFuseMetadataCacheRemoveStat(iRodsPath);
     }
     
@@ -1384,6 +1407,7 @@ int iFuseFsChmod(const char *iRodsPath, mode_t mode) {
     
     // clear stat cache
     if(g_CacheMetadata) {
+        iFuseRodsClientLog(LOG_DEBUG, "iFuseFsChmod: iFuseMetadataCacheRemoveStat - %s", iRodsPath);
         iFuseMetadataCacheRemoveStat(iRodsPath);
     }
     
