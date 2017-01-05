@@ -1393,12 +1393,10 @@ int iFuseFsChmod(const char *iRodsPath, mode_t mode) {
 int iFuseFsIoctl(const char *iRodsPath, int cmd, void *arg, struct fuse_file_info *fi, unsigned int flags, void *data) {
     assert(iRodsPath != NULL);
 
-    iFuseRodsClientLog(LOG_DEBUG, "iFuseFsIoctl: %s", iRodsPath);
+    iFuseRodsClientLog(LOG_DEBUG, "iFuseFsIoctl: %s, command = %d, arg = %x, data = %x", iRodsPath, cmd, arg, data);
     
-    UNUSED(arg);
     UNUSED(fi);
     UNUSED(flags);
-    UNUSED(data);
     
     switch (cmd) {
     	case IFUSEIOC_RESET_METADATA_CACHE:
@@ -1410,9 +1408,18 @@ int iFuseFsIoctl(const char *iRodsPath, int cmd, void *arg, struct fuse_file_inf
                 }
             }
         	return 0;
-
+        case IFUSEIOC_SHOW_CONNECTIONS:
+            {
+                // show all connections
+                iFuseFsConnReport_t report;
+                iFuseRodsClientLog(LOG_DEBUG, "iFuseFsIoctl: showing all connections");
+                
+                iFuseConnReport(&report);
+                *(iFuseFsConnReport_t*) data = report;
+            }
+            return 0;
     	default:
-    		return 0;
+    		return -EINVAL;
 	}
 
     return 0;

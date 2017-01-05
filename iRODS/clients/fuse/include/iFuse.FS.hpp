@@ -10,6 +10,7 @@
 #include <sys/ioctl.h>
 #include "iFuse.Lib.hpp"
 #include "iFuse.Lib.Fd.hpp"
+#include "iFuse.Lib.Conn.hpp"
 
 #define DEF_FILE_MODE	0660
 #define DEF_DIR_MODE	0770
@@ -19,6 +20,7 @@
 #define IOCTL_APP_NUMBER 0xEE
 
 #define IFUSEIOC_RESET_METADATA_CACHE _IO(IOCTL_APP_NUMBER, 0)
+#define IFUSEIOC_SHOW_CONNECTIONS _IOR(IOCTL_APP_NUMBER, 1, iFuseFsConnReport_t)
 
 typedef int (*iFuseDirFiller) (void *buf, const char *name, const struct stat *stbuf, off_t off);
 

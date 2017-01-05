@@ -30,6 +30,14 @@ typedef struct IFuseConn {
     pthread_rwlock_t lock;
 } iFuseConn_t;
 
+typedef struct IFuseFsConnReport {
+    int inuseShortOpConn;
+    int inuseConn;
+    int inuseOnetimeuseConn;
+    int freeShortopConn;
+    int freeConn;
+} iFuseFsConnReport_t;
+
 /*
  * Usage pattern
  * - iFuseConnInit
@@ -44,6 +52,7 @@ typedef struct IFuseConn {
 int iFuseConnTest();
 void iFuseConnInit();
 void iFuseConnDestroy();
+void iFuseConnReport(iFuseFsConnReport_t *report);
 int iFuseConnGetAndUse(iFuseConn_t **iFuseConn, int connType);
 int iFuseConnUnuse(iFuseConn_t *iFuseConn);
 void iFuseConnUpdateLastActTime(iFuseConn_t *iFuseConn, bool lock);

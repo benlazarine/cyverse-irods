@@ -24,6 +24,14 @@ void iFuseLibGetStrCurrentTime(char *buff) {
     buff[strlen(buff) - 1] = 0;
 }
 
+void iFuseLibGetStrTime(time_t time, char *buff) {
+    struct tm curtm;
+    localtime_r(&time, &curtm);
+    
+    asctime_r(&curtm, buff);
+    buff[strlen(buff) - 1] = 0;
+}
+
 double iFuseLibDiffTimeSec(time_t end, time_t beginning) {
     return difftime(end, beginning);
 }

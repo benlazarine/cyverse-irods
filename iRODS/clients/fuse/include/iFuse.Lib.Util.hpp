@@ -13,6 +13,7 @@
 
 time_t iFuseLibGetCurrentTime();
 void iFuseLibGetStrCurrentTime(char *buff);
+void iFuseLibGetStrTime(time_t time, char *buff);
 double iFuseLibDiffTimeSec(time_t end, time_t beginning);
 int iFuseLibSplitPath(const char *srcPath, char *dir, unsigned int maxDirLen, char *file, unsigned int maxFileLen);
 int iFuseLibJoinPath(const char *dir, const char *file, char *destPath, unsigned int maxDestPathLen);

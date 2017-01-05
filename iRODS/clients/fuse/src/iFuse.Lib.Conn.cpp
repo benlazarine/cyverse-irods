@@ -242,21 +242,24 @@ static void _connChecker() {
     std::list<iFuseConn_t*>::iterator it_conn;
     std::map<unsigned long, iFuseConn_t*>::iterator it_connmap;
     iFuseConn_t *iFuseConn;
+    time_t current;
     int i;
+    
+    current = iFuseLibGetCurrentTime();
 
-    if(iFuseLibDiffTimeSec(iFuseLibGetCurrentTime(), g_LastConnCheck) > g_ConnCheckIntervalSec) {
+    if(iFuseLibDiffTimeSec(current, g_LastConnCheck) > g_ConnCheckIntervalSec) {
         pthread_rwlock_rdlock(&g_ConnectedConnLock);
 
         for(i=0;i<g_MaxConnNum;i++) {
             if(g_InUseConn[i] != NULL) {
-                if(iFuseLibDiffTimeSec(iFuseLibGetCurrentTime(), g_InUseConn[i]->lastActTime) >= g_ConnKeepAliveSec) {
+                if(iFuseLibDiffTimeSec(current, g_InUseConn[i]->lastActTime) >= g_ConnKeepAliveSec) {
                     _keepAlive(g_InUseConn[i]);
                 }
             }
         }
 
         if(g_InUseShortopConn != NULL) {
-            if(iFuseLibDiffTimeSec(iFuseLibGetCurrentTime(), g_InUseShortopConn->lastActTime) >= g_ConnKeepAliveSec) {
+            if(iFuseLibDiffTimeSec(current, g_InUseShortopConn->lastActTime) >= g_ConnKeepAliveSec) {
                 _keepAlive(g_InUseShortopConn);
             }
         }
@@ -264,7 +267,7 @@ static void _connChecker() {
         for(it_connmap=g_InUseOnetimeuseConn.begin();it_connmap!=g_InUseOnetimeuseConn.end();it_connmap++) {
             iFuseConn = it_connmap->second;
 
-            if(iFuseLibDiffTimeSec(iFuseLibGetCurrentTime(), iFuseConn->lastActTime) >= g_ConnKeepAliveSec) {
+            if(iFuseLibDiffTimeSec(current, iFuseConn->lastActTime) >= g_ConnKeepAliveSec) {
                 _keepAlive(iFuseConn);
             }
         }
@@ -272,13 +275,13 @@ static void _connChecker() {
         for(it_conn=g_FreeConn.begin();it_conn!=g_FreeConn.end();it_conn++) {
             iFuseConn = *it_conn;
 
-            if(iFuseLibDiffTimeSec(iFuseLibGetCurrentTime(), iFuseConn->lastActTime) >= g_ConnKeepAliveSec) {
+            if(iFuseLibDiffTimeSec(current, iFuseConn->lastActTime) >= g_ConnKeepAliveSec) {
                 _keepAlive(iFuseConn);
             }
         }
         
         if(g_FreeShortopConn != NULL) {
-            if(iFuseLibDiffTimeSec(iFuseLibGetCurrentTime(), g_FreeShortopConn->lastActTime) >= g_ConnKeepAliveSec) {
+            if(iFuseLibDiffTimeSec(current, g_FreeShortopConn->lastActTime) >= g_ConnKeepAliveSec) {
                 _keepAlive(g_FreeShortopConn);
             }
         }
@@ -292,7 +295,7 @@ static void _connChecker() {
         for(it_conn=g_FreeConn.begin();it_conn!=g_FreeConn.end();it_conn++) {
             iFuseConn = *it_conn;
 
-            if(iFuseLibDiffTimeSec(iFuseLibGetCurrentTime(), iFuseConn->lastUseTime) >= g_ConnTimeoutSec) {
+            if(iFuseLibDiffTimeSec(current, iFuseConn->lastUseTime) >= g_ConnTimeoutSec) {
                 removeList.push_back(iFuseConn);
             }
         }
@@ -306,7 +309,7 @@ static void _connChecker() {
         }
 
         if(g_FreeShortopConn != NULL) {
-            if(iFuseLibDiffTimeSec(iFuseLibGetCurrentTime(), g_FreeShortopConn->lastUseTime) >= g_ConnTimeoutSec) {
+            if(iFuseLibDiffTimeSec(current, g_FreeShortopConn->lastUseTime) >= g_ConnTimeoutSec) {
                 _freeConn(g_FreeShortopConn);
                 g_FreeShortopConn = NULL;
             }
@@ -423,6 +426,59 @@ void iFuseConnDestroy() {
     
     pthread_rwlock_destroy(&g_IDGenLock);
     pthread_rwlockattr_destroy(&g_IDGenLockAttr);
+}
+
+/*
+ * Report status of connections
+ */
+void iFuseConnReport(iFuseFsConnReport_t *report) {
+    std::list<iFuseConn_t*>::iterator it_conn;
+    std::map<unsigned long, iFuseConn_t*>::iterator it_connmap;
+    iFuseConn_t *iFuseConn;
+    int i;
+    time_t current;
+    
+    assert(report != NULL);
+    
+    bzero(report, sizeof(iFuseFsConnReport_t));
+
+    pthread_rwlock_rdlock(&g_ConnectedConnLock);
+    
+    current = iFuseLibGetCurrentTime();
+
+    if(g_InUseShortopConn != NULL) {
+        iFuseRodsClientLog(LOG_DEBUG, "iFuseConnReport: short-op connection (%lu) is in use, last act = %d sec ago, last use = %d sec ago", g_InUseShortopConn->connId, (int)iFuseLibDiffTimeSec(current, g_InUseShortopConn->lastActTime), (int)iFuseLibDiffTimeSec(current, g_InUseShortopConn->lastUseTime));
+        report->inuseShortOpConn++;
+    }
+    
+    for(i=0;i<g_MaxConnNum;i++) {
+        if(g_InUseConn[i] != NULL) {
+            iFuseRodsClientLog(LOG_DEBUG, "iFuseConnReport: general connection (%lu) is in use, last act = %d sec ago, last use = %d sec ago", g_InUseConn[i]->connId, (int)iFuseLibDiffTimeSec(current, g_InUseConn[i]->lastActTime), (int)iFuseLibDiffTimeSec(current, g_InUseConn[i]->lastUseTime));
+            report->inuseConn++;
+        }
+    }
+
+    for(it_connmap=g_InUseOnetimeuseConn.begin();it_connmap!=g_InUseOnetimeuseConn.end();it_connmap++) {
+        iFuseConn = it_connmap->second;
+        
+        iFuseRodsClientLog(LOG_DEBUG, "iFuseConnReport: one-time-use connection (%lu) is in use, last act = %d sec ago, last use = %d sec ago", iFuseConn->connId, (int)iFuseLibDiffTimeSec(current, iFuseConn->lastActTime), (int)iFuseLibDiffTimeSec(current, iFuseConn->lastUseTime));
+        report->inuseOnetimeuseConn++;
+    }
+    
+    if(g_FreeShortopConn != NULL) {
+        iFuseRodsClientLog(LOG_DEBUG, "iFuseConnReport: short-op connection (%lu) is free, last act = %d sec ago, last use = %d sec ago", g_FreeShortopConn->connId, (int)iFuseLibDiffTimeSec(current, g_FreeShortopConn->lastActTime), (int)iFuseLibDiffTimeSec(current, g_FreeShortopConn->lastUseTime));
+        
+        report->freeShortopConn++;
+    }
+    
+    for(it_conn=g_FreeConn.begin();it_conn!=g_FreeConn.end();it_conn++) {
+        iFuseConn = *it_conn;
+        
+        iFuseRodsClientLog(LOG_DEBUG, "iFuseConnReport: connection (%lu) is free, last act = %d sec ago, last use = %d sec ago", iFuseConn->connId, (int)iFuseLibDiffTimeSec(current, iFuseConn->lastActTime), (int)iFuseLibDiffTimeSec(current, iFuseConn->lastUseTime));
+        report->freeConn++;
+    }
+    
+    pthread_rwlock_unlock(&g_ConnectedConnLock);
 }
 
 /*
