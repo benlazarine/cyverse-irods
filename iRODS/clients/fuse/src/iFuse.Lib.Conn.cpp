@@ -683,7 +683,7 @@ int iFuseConnUnuse(iFuseConn_t *iFuseConn) {
                 }
             }
 
-            g_FreeConn.push_back(iFuseConn);
+            g_FreeConn.push_front(iFuseConn);
 
             pthread_rwlock_unlock(&iFuseConn->lock);
             pthread_rwlock_unlock(&g_ConnectedConnLock);
