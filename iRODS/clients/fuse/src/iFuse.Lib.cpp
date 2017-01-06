@@ -33,7 +33,7 @@ static void* _timerTick(void* param) {
     
     UNUSED(param);
     
-    iFuseRodsClientLog(LOG_DEBUG, "_timerTick: timer is running");
+    iFuseLibLog(LOG_DEBUG, "_timerTick: timer is running");
     
     while(g_TimerRunning) {
         pthread_rwlock_rdlock(&g_TimerHandlerLock);
@@ -74,8 +74,7 @@ void iFuseLibInit() {
     pthread_rwlockattr_init(&g_TimerHandlerLockAttr);
     pthread_rwlock_init(&g_TimerHandlerLock, &g_TimerHandlerLockAttr);
     
-    g_TimerRunning = true;
-    pthread_create(&g_Timer, NULL, _timerTick, NULL);
+    iFuseUtilInit();
     
     iFuseRodsClientInit();
     iFuseConnInit();
@@ -83,10 +82,14 @@ void iFuseLibInit() {
     iFuseFdInit();
     
     iFuseMetadataCacheInit();
+    
+    g_TimerRunning = true;
+    pthread_create(&g_Timer, NULL, _timerTick, NULL);
 }
 
 void iFuseLibDestroy() {
     g_TimerRunning = false;
+    pthread_join(g_Timer, NULL);
     
     iFuseMetadataCacheDestroy();
     
@@ -95,7 +98,7 @@ void iFuseLibDestroy() {
     iFuseConnDestroy();
     iFuseRodsClientDestroy();
     
-    pthread_join(g_Timer, NULL);
+    iFuseUtilDestroy();
     
     pthread_rwlock_destroy(&g_TimerHandlerLock);
     pthread_rwlockattr_destroy(&g_TimerHandlerLockAttr);

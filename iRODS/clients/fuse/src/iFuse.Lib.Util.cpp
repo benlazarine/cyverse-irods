@@ -11,6 +11,19 @@
 #include "iFuse.Lib.hpp"
 #include "iFuse.Lib.Util.hpp"
 
+static pthread_rwlock_t g_LogLock;
+static pthread_rwlockattr_t g_LogLockAttr;
+
+void iFuseUtilInit() {
+    pthread_rwlockattr_init(&g_LogLockAttr);
+    pthread_rwlock_init(&g_LogLock, &g_LogLockAttr);
+}
+
+void iFuseUtilDestroy() {
+    pthread_rwlock_destroy(&g_LogLock);
+    pthread_rwlockattr_destroy(&g_LogLockAttr);
+}
+
 time_t iFuseLibGetCurrentTime() {
     return time(NULL);
 }
@@ -108,4 +121,68 @@ int iFuseLibGetFilename(const char *srcPath, char *file, unsigned int maxFileLen
         return 0;
     }
     return -ENOENT;
+}
+
+void iFuseLibLogLock() {
+    pthread_rwlock_wrlock(&g_LogLock);
+}
+
+void iFuseLibLogUnlock() {
+    pthread_rwlock_unlock(&g_LogLock);
+}
+
+void iFuseLibLogToFile(int level, const char *formatStr, ...) {
+    va_list args;
+    va_start(args, formatStr);
+    
+    FILE *logFile;
+    
+    logFile = fopen(IFUSE_LIB_LOG_OUT_FILE_PATH, "a");
+    if(logFile != NULL) {
+        if(level == 7) {
+            // debug
+            fprintf(logFile, "DEBUG: ");
+        } else if(level == 3) {
+            // error
+            fprintf(logFile, "ERROR: ");
+        } else {
+            fprintf(logFile, "errorLevel : %d\n", level);
+        }
+        vfprintf(logFile, formatStr, args);
+        fprintf(logFile, "\n");
+        
+        fflush(logFile);
+        fsync(fileno(logFile));
+        fclose(logFile);
+    }
+    
+    va_end(args);
+}
+
+void iFuseLibLogErrorToFile(int level, int errCode, char *formatStr, ...) {
+    va_list args;
+    va_start(args, formatStr);
+    
+    FILE *logFile;
+    
+    logFile = fopen(IFUSE_LIB_LOG_OUT_FILE_PATH, "a");
+    if(logFile != NULL) {
+        if(level == 7) {
+            // debug
+            fprintf(logFile, "DEBUG - ERROR_CODE(%d): ", errCode);
+        } else if(level == 3) {
+            // error
+            fprintf(logFile, "ERROR - ERROR_CODE(%d): ", errCode);
+        } else {
+            fprintf(logFile, "errorLevel : %d, errorCode : %d\n", level, errCode);
+        }
+        vfprintf(logFile, formatStr, args);
+        fprintf(logFile, "\n");
+        
+        fflush(logFile);
+        fsync(fileno(logFile));
+        fclose(logFile);
+    }
+    
+    va_end(args);
 }

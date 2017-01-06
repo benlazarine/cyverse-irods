@@ -66,7 +66,7 @@ int main(int argc, char **argv) {
 
     status = getRodsEnv(&myRodsEnv);
     if (status < 0) {
-        iFuseRodsClientLogError(LOG_ERROR, status, "main: getRodsEnv error.");
+        fprintf(stderr, "iRods Fuse abort: getRodsEnv error with status %d\n", status);
         return 1;
     }
 
@@ -122,7 +122,7 @@ int main(int argc, char **argv) {
     
     iFuseGenCmdLineForFuse(&fuse_argc, &fuse_argv);
     
-    iFuseRodsClientLog(LOG_DEBUG, "main: iRods Fuse gets started.");
+    iFuseLibLog(LOG_DEBUG, "main: iRods Fuse gets started.");
     status = fuse_main(fuse_argc, fuse_argv, &irodsOper, NULL);
     iFuseReleaseCmdLineForFuse(fuse_argc, fuse_argv);
 

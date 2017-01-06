@@ -593,7 +593,7 @@ void iFuseMetadataCacheClear() {
 
 int iFuseMetadataCacheClearExpiredStat(bool force) {
     int status;
-    iFuseRodsClientLog(LOG_DEBUG, "iFuseMetadataCacheClearExpiredStat");
+    iFuseLibLog(LOG_DEBUG, "iFuseMetadataCacheClearExpiredStat");
     
     if(!force) {
         if(iFuseLibDiffTimeSec(iFuseLibGetCurrentTime(), g_LastStatCacheTimeoutCheck) <= (g_metadataCacheTimeoutSec / 2)) {
@@ -601,7 +601,7 @@ int iFuseMetadataCacheClearExpiredStat(bool force) {
         }
     }
     
-    iFuseRodsClientLog(LOG_DEBUG, "iFuseMetadataCacheClearExpiredStat: Clearing expired stat cache");
+    iFuseLibLog(LOG_DEBUG, "iFuseMetadataCacheClearExpiredStat: Clearing expired stat cache");
 
     status = _clearExpiredStatCache();
     g_LastStatCacheTimeoutCheck = iFuseLibGetCurrentTime();
@@ -610,7 +610,7 @@ int iFuseMetadataCacheClearExpiredStat(bool force) {
 
 int iFuseMetadataCacheClearExpiredDir(bool force) {
     int status;
-    iFuseRodsClientLog(LOG_DEBUG, "iFuseMetadataCacheClearExpiredDir");
+    iFuseLibLog(LOG_DEBUG, "iFuseMetadataCacheClearExpiredDir");
     
     if(!force) {
         if(iFuseLibDiffTimeSec(iFuseLibGetCurrentTime(), g_LastDirCacheTimeoutCheck) <= (g_metadataCacheTimeoutSec / 2)) {
@@ -618,7 +618,7 @@ int iFuseMetadataCacheClearExpiredDir(bool force) {
         }
     }
     
-    iFuseRodsClientLog(LOG_DEBUG, "iFuseMetadataCacheClearExpiredDir: Clearing expired dir cache");
+    iFuseLibLog(LOG_DEBUG, "iFuseMetadataCacheClearExpiredDir: Clearing expired dir cache");
 
     status = _clearExpiredDirCache();
     g_LastDirCacheTimeoutCheck = iFuseLibGetCurrentTime();
@@ -627,7 +627,7 @@ int iFuseMetadataCacheClearExpiredDir(bool force) {
 
 int iFuseMetadataCachePutStat(const char *iRodsPath, const struct stat *stbuf) {
     
-    iFuseRodsClientLog(LOG_DEBUG, "iFuseMetadataCachePutStat: %s", iRodsPath);
+    iFuseLibLog(LOG_DEBUG, "iFuseMetadataCachePutStat: %s", iRodsPath);
     
     return _cacheStat(iRodsPath, stbuf);
 }
@@ -636,7 +636,7 @@ int iFuseMetadataCachePutStat2(const char *iRodsDirPath, const char *iRodsFilena
     int status;
     char path[MAX_NAME_LEN];
     
-    iFuseRodsClientLog(LOG_DEBUG, "iFuseMetadataCachePutStat2: %s, %s", iRodsDirPath, iRodsFilename);
+    iFuseLibLog(LOG_DEBUG, "iFuseMetadataCachePutStat2: %s, %s", iRodsDirPath, iRodsFilename);
     
     status = iFuseLibJoinPath(iRodsDirPath, iRodsFilename, path, MAX_NAME_LEN);
     if(status != 0) {
@@ -647,7 +647,7 @@ int iFuseMetadataCachePutStat2(const char *iRodsDirPath, const char *iRodsFilena
 
 int iFuseMetadataCacheAddDirEntry(const char *iRodsPath, const char *iRodsFilename) {
     
-    iFuseRodsClientLog(LOG_DEBUG, "iFuseMetadataCacheAddDirEntry: %s, %s", iRodsPath, iRodsFilename);
+    iFuseLibLog(LOG_DEBUG, "iFuseMetadataCacheAddDirEntry: %s, %s", iRodsPath, iRodsFilename);
     
     return _cacheDirEntry(iRodsPath, iRodsFilename);
 }
@@ -655,7 +655,7 @@ int iFuseMetadataCacheAddDirEntry(const char *iRodsPath, const char *iRodsFilena
 int iFuseMetadataCacheAddDirEntryIfFresh(const char *iRodsPath, const char *iRodsFilename) {
     int status;
     
-    iFuseRodsClientLog(LOG_DEBUG, "iFuseMetadataCacheAddDirEntryIfFresh: %s, %s", iRodsPath, iRodsFilename);
+    iFuseLibLog(LOG_DEBUG, "iFuseMetadataCacheAddDirEntryIfFresh: %s, %s", iRodsPath, iRodsFilename);
     
     status = _checkFreshessOfDirCache(iRodsPath);
     if(status != 0) {
@@ -670,7 +670,7 @@ int iFuseMetadataCacheAddDirEntryIfFresh2(const char *iRodsPath) {
     char myDir[MAX_NAME_LEN];
     char myEntry[MAX_NAME_LEN];
     
-    iFuseRodsClientLog(LOG_DEBUG, "iFuseMetadataCacheAddDirEntryIfFresh2: %s", iRodsPath);
+    iFuseLibLog(LOG_DEBUG, "iFuseMetadataCacheAddDirEntryIfFresh2: %s", iRodsPath);
 
     status = iFuseLibSplitPath(iRodsPath, myDir, MAX_NAME_LEN, myEntry, MAX_NAME_LEN);
     if(status != 0) {
@@ -687,35 +687,35 @@ int iFuseMetadataCacheAddDirEntryIfFresh2(const char *iRodsPath) {
 
 int iFuseMetadataCacheGetStat(const char *iRodsPath, struct stat *stbuf) {
     
-    iFuseRodsClientLog(LOG_DEBUG, "iFuseMetadataCacheGetStat: %s", iRodsPath);
+    iFuseLibLog(LOG_DEBUG, "iFuseMetadataCacheGetStat: %s", iRodsPath);
     
     return _getStatCache(iRodsPath, stbuf);
 }
 
 int iFuseMetadataCacheGetDirEntry(const char *iRodsPath, char **entries, unsigned int *bufferLen) {
     
-    iFuseRodsClientLog(LOG_DEBUG, "iFuseMetadataCacheGetDirEntry: %s", iRodsPath);
+    iFuseLibLog(LOG_DEBUG, "iFuseMetadataCacheGetDirEntry: %s", iRodsPath);
     
     return _getDirCache(iRodsPath, entries, bufferLen);
 }
 
 int iFuseMetadataCacheRemoveStat(const char *iRodsPath) {
     
-    iFuseRodsClientLog(LOG_DEBUG, "iFuseMetadataCacheRemoveStat: %s", iRodsPath);
+    iFuseLibLog(LOG_DEBUG, "iFuseMetadataCacheRemoveStat: %s", iRodsPath);
     
     return _removeStatCache(iRodsPath);
 }
 
 int iFuseMetadataCacheRemoveDir(const char *iRodsPath) {
     
-    iFuseRodsClientLog(LOG_DEBUG, "iFuseMetadataCacheRemoveDir: %s", iRodsPath);
+    iFuseLibLog(LOG_DEBUG, "iFuseMetadataCacheRemoveDir: %s", iRodsPath);
     
     return _removeDirCache(iRodsPath);
 }
 
 int iFuseMetadataCacheRemoveDirEntry(const char *iRodsPath, const char *iRodsFilename) {
     
-    iFuseRodsClientLog(LOG_DEBUG, "iFuseMetadataCacheRemoveDirEntry: %s, %s", iRodsPath, iRodsFilename);
+    iFuseLibLog(LOG_DEBUG, "iFuseMetadataCacheRemoveDirEntry: %s, %s", iRodsPath, iRodsFilename);
     
     return _removeDirCacheEntry(iRodsPath, iRodsFilename);
 }
@@ -725,7 +725,7 @@ int iFuseMetadataCacheRemoveDirEntry2(const char *iRodsPath) {
     char myDir[MAX_NAME_LEN];
     char myEntry[MAX_NAME_LEN];
 
-    iFuseRodsClientLog(LOG_DEBUG, "iFuseMetadataCacheRemoveDirEntry2: %s", iRodsPath);
+    iFuseLibLog(LOG_DEBUG, "iFuseMetadataCacheRemoveDirEntry2: %s", iRodsPath);
 
     status = iFuseLibSplitPath(iRodsPath, myDir, MAX_NAME_LEN, myEntry, MAX_NAME_LEN);
     if(status != 0) {

@@ -112,7 +112,7 @@ static void _applyDeltaToCache(const char *iRodsPath, const char *buf, off_t off
     for (it_cachemap = g_CacheMap.begin(); it_cachemap != g_CacheMap.end(); it_cachemap++) {
         iFuseBufferCache = it_cachemap->second;
 
-        iFuseRodsClientLog(LOG_DEBUG, "_applyDeltaToCache: comp %s - %s", iFuseBufferCache->iRodsPath, iRodsPath);
+        iFuseLibLog(LOG_DEBUG, "_applyDeltaToCache: comp %s - %s", iFuseBufferCache->iRodsPath, iRodsPath);
         if (strcmp(iFuseBufferCache->iRodsPath, iRodsPath) == 0) {
             if (_isSameBlock(iFuseBufferCache->offset, off)) {
                 // update
@@ -155,7 +155,7 @@ static int _flushDelta(iFuseFd_t *iFuseFd) {
 
             status = iFuseFsWrite(iFuseFd, iFuseBufferCache->buffer, iFuseBufferCache->offset, iFuseBufferCache->size);
             if (status < 0) {
-                iFuseRodsClientLogError(LOG_ERROR, status, "_flushDelta: iFuseFsWrite of %s error, status = %d",
+                iFuseLibLogError(LOG_ERROR, status, "_flushDelta: iFuseFsWrite of %s error, status = %d",
                         iFuseFd->iRodsPath, status);
                 return -ENOENT;
             }
@@ -238,14 +238,14 @@ static int _readBlock(iFuseFd_t *iFuseFd, char *buf, unsigned int blockID) {
 
         status = iFuseFsRead(iFuseFd, blockBuffer, blockStartOffset, g_Blocksize);
         if (status < 0) {
-            iFuseRodsClientLogError(LOG_ERROR, status, "_readBlock: iFuseFsRead of %s error, status = %d",
+            iFuseLibLogError(LOG_ERROR, status, "_readBlock: iFuseFsRead of %s error, status = %d",
                     iFuseFd->iRodsPath, status);
             free(blockBuffer);
             _freeBufferCache(iFuseBufferCache);
             return -ENOENT;
         }
 
-        iFuseRodsClientLog(LOG_DEBUG, "_readBlock: iFuseFsRead of %s - offset: %lld, size: %lld", iFuseFd->iRodsPath, (long long)blockStartOffset, (long long)status);
+        iFuseLibLog(LOG_DEBUG, "_readBlock: iFuseFsRead of %s - offset: %lld, size: %lld", iFuseFd->iRodsPath, (long long)blockStartOffset, (long long)status);
 
         iFuseBufferCache->fdId = iFuseFd->fdId;
         iFuseBufferCache->iRodsPath = strdup(iFuseFd->iRodsPath);
@@ -364,7 +364,7 @@ static int _writeBlock(iFuseFd_t *iFuseFd, const char *buf, off_t off, size_t si
             // flush
             status = iFuseFsWrite(iFuseFd, bufFlush, offFlush, sizeFlush);
             if (status < 0) {
-                iFuseRodsClientLogError(LOG_ERROR, status, "_writeBlock: iFuseFsWrite of %s error, status = %d",
+                iFuseLibLogError(LOG_ERROR, status, "_writeBlock: iFuseFsWrite of %s error, status = %d",
                         iFuseFd->iRodsPath, status);
                 return -ENOENT;
             }
@@ -467,11 +467,11 @@ int iFuseBufferedFsGetAttr(const char *iRodsPath, struct stat *stbuf) {
     assert(iRodsPath != NULL);
     assert(stbuf != NULL);
 
-    iFuseRodsClientLog(LOG_DEBUG, "iFuseBufferedFsGetAttr: %s", iRodsPath);
+    iFuseLibLog(LOG_DEBUG, "iFuseBufferedFsGetAttr: %s", iRodsPath);
 
     status = iFuseFsGetAttr(iRodsPath, stbuf);
     if (status < 0) {
-        iFuseRodsClientLogError(LOG_ERROR, status, "iFuseBufferedFsGetAttr: iFuseFsGetAttr of %s error, status = %d",
+        iFuseLibLogError(LOG_ERROR, status, "iFuseBufferedFsGetAttr: iFuseFsGetAttr of %s error, status = %d",
                 iRodsPath, status);
         return status;
     }
@@ -502,11 +502,11 @@ int iFuseBufferedFsOpen(const char *iRodsPath, iFuseFd_t **iFuseFd, int openFlag
     assert(iRodsPath != NULL);
     assert(iFuseFd != NULL);
 
-    iFuseRodsClientLog(LOG_DEBUG, "iFuseBufferedFsOpen: %s, openFlag: 0x%08x", iRodsPath, openFlag);
+    iFuseLibLog(LOG_DEBUG, "iFuseBufferedFsOpen: %s, openFlag: 0x%08x", iRodsPath, openFlag);
 
     status = iFuseFsOpen(iRodsPath, iFuseFd, openFlag);
     if (status < 0) {
-        iFuseRodsClientLogError(LOG_ERROR, status, "iFuseBufferedFsOpen: iFuseFsOpen of %s error, status = %d",
+        iFuseLibLogError(LOG_ERROR, status, "iFuseBufferedFsOpen: iFuseFsOpen of %s error, status = %d",
                 iRodsPath, status);
         return status;
     }
@@ -525,13 +525,13 @@ int iFuseBufferedFsClose(iFuseFd_t *iFuseFd) {
 
     assert(iFuseFd != NULL);
 
-    iFuseRodsClientLog(LOG_DEBUG, "iFuseBufferedFsClose: %s", iFuseFd->iRodsPath);
+    iFuseLibLog(LOG_DEBUG, "iFuseBufferedFsClose: %s", iFuseFd->iRodsPath);
 
     if((iFuseFd->openFlag & O_ACCMODE) != O_RDONLY) {
         // flush if necessary
         status = _flushDelta(iFuseFd);
         if (status < 0) {
-            iFuseRodsClientLogError(LOG_ERROR, status, "iFuseBufferedFsClose: _flushCache of %s error, status = %d",
+            iFuseLibLogError(LOG_ERROR, status, "iFuseBufferedFsClose: _flushCache of %s error, status = %d",
                     iFuseFd->iRodsPath, status);
             return -ENOENT;
         }
@@ -554,7 +554,7 @@ int iFuseBufferedFsClose(iFuseFd_t *iFuseFd) {
 
     status = iFuseFsClose(iFuseFd);
     if (status < 0) {
-        iFuseRodsClientLogError(LOG_ERROR, status, "iFuseBufferedFsClose: iFuseFsClose of %s error, status = %d",
+        iFuseLibLogError(LOG_ERROR, status, "iFuseBufferedFsClose: iFuseFsClose of %s error, status = %d",
                 iRodsPath, status);
         free(iRodsPath);
         return -ENOENT;
@@ -572,12 +572,12 @@ int iFuseBufferedFsFlush(iFuseFd_t *iFuseFd) {
 
     assert(iFuseFd != NULL);
 
-    iFuseRodsClientLog(LOG_DEBUG, "iFuseBufferedFsFlush: %s", iFuseFd->iRodsPath);
+    iFuseLibLog(LOG_DEBUG, "iFuseBufferedFsFlush: %s", iFuseFd->iRodsPath);
 
     if((iFuseFd->openFlag & O_ACCMODE) != O_RDONLY) {
         status = _flushDelta(iFuseFd);
         if (status < 0) {
-            iFuseRodsClientLogError(LOG_ERROR, status, "iFuseBufferedFsFlush: _flushCache of %s error, status = %d",
+            iFuseLibLogError(LOG_ERROR, status, "iFuseBufferedFsFlush: _flushCache of %s error, status = %d",
                     iFuseFd->iRodsPath, status);
             return -ENOENT;
         }
@@ -585,7 +585,7 @@ int iFuseBufferedFsFlush(iFuseFd_t *iFuseFd) {
 
     status = iFuseFsFlush(iFuseFd);
     if (status < 0) {
-        iFuseRodsClientLogError(LOG_ERROR, status, "iFuseBufferedFsFlush: iFuseFsFlush of %s error, status = %d",
+        iFuseLibLogError(LOG_ERROR, status, "iFuseBufferedFsFlush: iFuseFsFlush of %s error, status = %d",
                 iFuseFd->iRodsPath, status);
         return -ENOENT;
     }
@@ -599,11 +599,11 @@ int iFuseBufferedFsReadBlock(iFuseFd_t *iFuseFd, char *buf, unsigned int blockID
     assert(iFuseFd != NULL);
     assert(buf != NULL);
 
-    iFuseRodsClientLog(LOG_DEBUG, "iFuseBufferedFsReadBlock: %s, blockID: %u", iFuseFd->iRodsPath, blockID);
+    iFuseLibLog(LOG_DEBUG, "iFuseBufferedFsReadBlock: %s, blockID: %u", iFuseFd->iRodsPath, blockID);
 
     status = _readBlock(iFuseFd, buf, blockID);
     if(status < 0) {
-        iFuseRodsClientLogError(LOG_ERROR, status, "iFuseBufferedFsReadBlock: _readBlock of %s error, status = %d",
+        iFuseLibLogError(LOG_ERROR, status, "iFuseBufferedFsReadBlock: _readBlock of %s error, status = %d",
             iFuseFd->iRodsPath, status);
         return status;
     }
@@ -627,7 +627,7 @@ int iFuseBufferedFsRead(iFuseFd_t *iFuseFd, char *buf, off_t off, size_t size) {
     assert(iFuseFd != NULL);
     assert(buf != NULL);
 
-    iFuseRodsClientLog(LOG_DEBUG, "iFuseBufferedFsRead: %s, offset: %lld, size: %lld", iFuseFd->iRodsPath, (long long)off, (long long)size);
+    iFuseLibLog(LOG_DEBUG, "iFuseBufferedFsRead: %s, offset: %lld, size: %lld", iFuseFd->iRodsPath, (long long)off, (long long)size);
 
     // read in block level
     remain = size;
@@ -640,7 +640,7 @@ int iFuseBufferedFsRead(iFuseFd_t *iFuseFd, char *buf, off_t off, size_t size) {
 
         status = _readBlock(iFuseFd, blockBuffer, getBlockID(curOffset));
         if(status < 0) {
-            iFuseRodsClientLogError(LOG_ERROR, status, "iFuseBufferedFsRead: _readBlock of %s error, status = %d",
+            iFuseLibLogError(LOG_ERROR, status, "iFuseBufferedFsRead: _readBlock of %s error, status = %d",
                 iFuseFd->iRodsPath, status);
             return status;
         } else if(status == 0) {
@@ -650,7 +650,7 @@ int iFuseBufferedFsRead(iFuseFd_t *iFuseFd, char *buf, off_t off, size_t size) {
 
         blockSize = (size_t)status;
 
-        iFuseRodsClientLog(LOG_DEBUG, "iFuseBufferedFsRead: _readBlock of %s, offset: %lld, in-block offset: %lld, curSize: %lld, size: %lld", iFuseFd->iRodsPath, (long long)curOffset, (long long)inBlockOffset, (long long)curSize, (long long)blockSize);
+        iFuseLibLog(LOG_DEBUG, "iFuseBufferedFsRead: _readBlock of %s, offset: %lld, in-block offset: %lld, curSize: %lld, size: %lld", iFuseFd->iRodsPath, (long long)curOffset, (long long)inBlockOffset, (long long)curSize, (long long)blockSize);
 
         if(inBlockOffset + curSize > blockSize) {
             curSize = blockSize - inBlockOffset;
@@ -661,7 +661,7 @@ int iFuseBufferedFsRead(iFuseFd_t *iFuseFd, char *buf, off_t off, size_t size) {
             break;
         }
 
-        iFuseRodsClientLog(LOG_DEBUG, "iFuseBufferedFsRead: block read of %s - offset %lld, size %lld", iFuseFd->iRodsPath, (long long)curOffset, (long long)curSize);
+        iFuseLibLog(LOG_DEBUG, "iFuseBufferedFsRead: block read of %s - offset %lld, size %lld", iFuseFd->iRodsPath, (long long)curOffset, (long long)curSize);
 
         // copy
         memcpy(buf + readSize, blockBuffer + inBlockOffset, curSize);
@@ -693,7 +693,7 @@ int iFuseBufferedFsWrite(iFuseFd_t *iFuseFd, const char *buf, off_t off, size_t 
     assert(iFuseFd != NULL);
     assert(buf != NULL);
 
-    iFuseRodsClientLog(LOG_DEBUG, "iFuseBufferedFsWrite: %s, offset: %lld, size: %lld", iFuseFd->iRodsPath, (long long)off, (long long)size);
+    iFuseLibLog(LOG_DEBUG, "iFuseBufferedFsWrite: %s, offset: %lld, size: %lld", iFuseFd->iRodsPath, (long long)off, (long long)size);
 
     // write in block level
     remain = size;
@@ -707,7 +707,7 @@ int iFuseBufferedFsWrite(iFuseFd_t *iFuseFd, const char *buf, off_t off, size_t 
 
         status = _writeBlock(iFuseFd, buf + writtenSize, curOffset, curSize);
         if(status < 0) {
-            iFuseRodsClientLogError(LOG_ERROR, status, "iFuseBufferedFsWrite: _writeBlock of %s error, status = %d",
+            iFuseLibLogError(LOG_ERROR, status, "iFuseBufferedFsWrite: _writeBlock of %s error, status = %d",
                 iFuseFd->iRodsPath, status);
             return status;
         }
