@@ -23,6 +23,9 @@ typedef struct IFuseRodsClientOperation {
 
 static pthread_rwlock_t g_RodsClientAPILock;
 static pthread_rwlockattr_t g_RodsClientAPILockAttr;
+static pthread_rwlock_t g_RodsClientAPIDebugLock;
+static pthread_rwlockattr_t g_RodsClientAPIDebugLockAttr;
+static bool g_UseRodsClientAPIDebugLock = false;
 static std::list<iFuseRodsClientOperation_t*> g_Operations;
 
 static int g_RodsapiTimeoutSec = IFUSE_RODSCLIENTAPI_TIMEOUT_SEC;
@@ -141,6 +144,10 @@ void iFuseRodsClientInit() {
     pthread_rwlockattr_init(&g_RodsClientAPILockAttr);
     pthread_rwlock_init(&g_RodsClientAPILock, &g_RodsClientAPILockAttr);
     
+    pthread_rwlockattr_init(&g_RodsClientAPIDebugLockAttr);
+    pthread_rwlock_init(&g_RodsClientAPIDebugLock, &g_RodsClientAPIDebugLockAttr);
+    g_UseRodsClientAPIDebugLock = true;
+    
     iFuseLibSetTimerTickHandler(_timeoutChecker);
 }
 
@@ -149,6 +156,10 @@ void iFuseRodsClientInit() {
  */
 void iFuseRodsClientDestroy() {
     iFuseLibUnsetTimerTickHandler(_timeoutChecker);
+    
+    g_UseRodsClientAPIDebugLock = false;
+    pthread_rwlock_destroy(&g_RodsClientAPIDebugLock);
+    pthread_rwlockattr_destroy(&g_RodsClientAPIDebugLockAttr);
     
     pthread_rwlock_destroy(&g_RodsClientAPILock);
     pthread_rwlockattr_destroy(&g_RodsClientAPILockAttr);
@@ -417,6 +428,18 @@ int iFuseRodsClientModDataObjMeta(rcComm_t *conn, modDataObjMeta_t *modDataObjMe
     return status;
 }
 
+void iFuseRodsClientLogLock() {
+    if(g_UseRodsClientAPIDebugLock) {
+        pthread_rwlock_wrlock(&g_RodsClientAPIDebugLock);
+    }
+}
+
+void iFuseRodsClientLogUnlock() {
+    if(g_UseRodsClientAPIDebugLock) {
+        pthread_rwlock_unlock(&g_RodsClientAPIDebugLock);
+    }
+}
+
 void iFuseRodsClientLogToFile(int level, const char *formatStr, ...) {
     va_list args;
     va_start(args, formatStr);
@@ -428,12 +451,17 @@ void iFuseRodsClientLogToFile(int level, const char *formatStr, ...) {
         if(level == 7) {
             // debug
             fprintf(logFile, "DEBUG: ");
+        } else if(level == 3) {
+            // error
+            fprintf(logFile, "ERROR: ");
         } else {
             fprintf(logFile, "errorLevel : %d\n", level);
         }
         vfprintf(logFile, formatStr, args);
         fprintf(logFile, "\n");
         
+        fflush(logFile);
+        fsync(fileno(logFile));
         fclose(logFile);
     }
     
@@ -451,12 +479,17 @@ void iFuseRodsClientLogErrorToFile(int level, int errCode, char *formatStr, ...)
         if(level == 7) {
             // debug
             fprintf(logFile, "DEBUG - ERROR_CODE(%d): ", errCode);
+        } else if(level == 3) {
+            // error
+            fprintf(logFile, "ERROR - ERROR_CODE(%d): ", errCode);
         } else {
             fprintf(logFile, "errorLevel : %d, errorCode : %d\n", level, errCode);
         }
         vfprintf(logFile, formatStr, args);
         fprintf(logFile, "\n");
         
+        fflush(logFile);
+        fsync(fileno(logFile));
         fclose(logFile);
     }
     

@@ -21,8 +21,16 @@ void iFuseRodsClientDestroy();
 int iFuseRodsClientReadMsgError(int status);
 
 #ifdef IFUSE_RODSCLIENTAPI_LOG_OUT_TO_FILE
-#   define iFuseRodsClientLogBase       iFuseRodsClientLogToFile
-#   define iFuseRodsClientLogErrorBase  iFuseRodsClientLogErrorToFile
+//#   define iFuseRodsClientLogBase       iFuseRodsClientLogToFile
+#define iFuseRodsClientLogBase(level, formatStr, ...)   \
+    iFuseRodsClientLogLock(); \
+    iFuseRodsClientLogToFile(level, formatStr, ## __VA_ARGS__); \
+    iFuseRodsClientLogUnlock()
+//#   define iFuseRodsClientLogErrorBase  iFuseRodsClientLogErrorToFile
+#define iFuseRodsClientLogErrorBase(level, errCode, formatStr, ...)   \
+    iFuseRodsClientLogLock(); \
+    iFuseRodsClientLogErrorToFile(level, errCode, formatStr, ## __VA_ARGS__); \
+    iFuseRodsClientLogUnlock()
 #else
 #   define iFuseRodsClientLogBase       rodsLog
 #   define iFuseRodsClientLogErrorBase  rodsLogError
@@ -78,5 +86,7 @@ int iFuseRodsClientModDataObjMeta(rcComm_t *conn, modDataObjMeta_t *modDataObjMe
 
 void iFuseRodsClientLogToFile(int level, const char *formatStr, ...);
 void iFuseRodsClientLogErrorToFile(int level, int errCode, char *formatStr, ...);
+void iFuseRodsClientLogLock();
+void iFuseRodsClientLogUnlock();
 
 #endif	/* IFUSE_LIB_RODSCLIENTAPI_HPP */
