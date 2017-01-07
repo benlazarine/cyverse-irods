@@ -36,10 +36,13 @@ static void _timeoutChecker() {
     
     bool hasTimeout = false;
     
-    if(iFuseLibDiffTimeSec(iFuseLibGetCurrentTime(), g_LastRodsapiTimeoutCheck) > g_RodsapiTimeoutSec / 2) {
+    iFuseLibLog(LOG_DEBUG, "_timeoutChecker is called");
+    
+    currentTime = iFuseLibGetCurrentTime();
+    
+    if(iFuseLibDiffTimeSec(currentTime, g_LastRodsapiTimeoutCheck) > g_RodsapiTimeoutSec / 2) {
+        iFuseLibLog(LOG_DEBUG, "_timeoutChecker: checking timedout rodsAPI calls");
         pthread_rwlock_rdlock(&g_RodsClientAPILock);
-        
-        currentTime = iFuseLibGetCurrentTime();
         
         // iterate operation list to check timedout
         for(it_oper=g_Operations.begin();it_oper!=g_Operations.end();it_oper++) {

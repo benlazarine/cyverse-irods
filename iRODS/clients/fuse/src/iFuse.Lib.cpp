@@ -9,6 +9,7 @@
 #include <assert.h>
 #include <pthread.h>
 #include <list>
+#include <unistd.h>
 #include "iFuse.Lib.hpp"
 #include "iFuse.Lib.RodsClientAPI.hpp"
 #include "iFuse.Lib.Conn.hpp"
@@ -36,19 +37,26 @@ static void* _timerTick(void* param) {
     iFuseLibLog(LOG_DEBUG, "_timerTick: timer is running");
     
     while(g_TimerRunning) {
-        pthread_rwlock_rdlock(&g_TimerHandlerLock);
+        iFuseLibLog(LOG_DEBUG, "_timerTick: calling timer handlers");
         
+        pthread_rwlock_rdlock(&g_TimerHandlerLock);
+
         // iterate list
         for(it_cb=g_TimerHandlers.begin();it_cb!=g_TimerHandlers.end();it_cb++) {
             callback = *it_cb;
-            
+        
+            iFuseLibLog(LOG_DEBUG, "_timerTick: calling a timer handler %p", callback);
             callback();
         }
         
         pthread_rwlock_unlock(&g_TimerHandlerLock);
         
-        sleep(1);
+        iFuseLibLog(LOG_DEBUG, "_timerTick: called all timer handlers, sleep 1sec");
+        
+        usleep(1000);
     }
+    
+    iFuseLibLog(LOG_DEBUG, "_timerTick: timer is stopped");
     
     return NULL;
 }

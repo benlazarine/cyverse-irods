@@ -124,6 +124,7 @@ int main(int argc, char **argv) {
     
     iFuseLibLog(LOG_DEBUG, "main: iRods Fuse gets started.");
     status = fuse_main(fuse_argc, fuse_argv, &irodsOper, NULL);
+    iFuseLibLog(LOG_DEBUG, "main: iRods Fuse gets stopped.");
     iFuseReleaseCmdLineForFuse(fuse_argc, fuse_argv);
 
     // Destroy libraries

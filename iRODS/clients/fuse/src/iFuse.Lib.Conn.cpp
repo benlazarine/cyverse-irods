@@ -245,6 +245,8 @@ static void _connChecker() {
     time_t current;
     int i;
     
+    iFuseLibLog(LOG_DEBUG, "_connChecker is called");
+    
     current = iFuseLibGetCurrentTime();
 
     if(iFuseLibDiffTimeSec(current, g_LastConnCheck) > g_ConnCheckIntervalSec) {
