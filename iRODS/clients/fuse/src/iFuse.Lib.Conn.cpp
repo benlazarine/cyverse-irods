@@ -248,6 +248,7 @@ static void _connChecker() {
     current = iFuseLibGetCurrentTime();
 
     if(iFuseLibDiffTimeSec(current, g_LastConnCheck) > g_ConnCheckIntervalSec) {
+        iFuseLibLog(LOG_DEBUG, "_connChecker: sending keep-alive requests");
         pthread_rwlock_rdlock(&g_ConnectedConnLock);
 
         for(i=0;i<g_MaxConnNum;i++) {
@@ -288,7 +289,7 @@ static void _connChecker() {
         
         pthread_rwlock_unlock(&g_ConnectedConnLock);
 
-        //iFuseLibLog(LOG_DEBUG, "_freeConnCollector: checking idle connections");
+        iFuseLibLog(LOG_DEBUG, "_connChecker: release idle connections");
 
         pthread_rwlock_wrlock(&g_ConnectedConnLock);
         // iterate free conn list to check timedout connections
