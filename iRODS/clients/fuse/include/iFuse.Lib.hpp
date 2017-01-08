@@ -46,6 +46,8 @@ void iFuseLibSetOption(iFuseOpt_t *pOpt);
 void iFuseLibInit();
 void iFuseLibDestroy();
 
+void iFuseLibInitTimerThread();
+void iFuseLibTerminateTimerThread();
 void iFuseLibSetTimerTickHandler(iFuseLibTimerHandlerCB callback);
 void iFuseLibUnsetTimerTickHandler(iFuseLibTimerHandlerCB callback);
 

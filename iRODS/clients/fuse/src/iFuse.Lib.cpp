@@ -90,15 +90,9 @@ void iFuseLibInit() {
     iFuseFdInit();
     
     iFuseMetadataCacheInit();
-    
-    g_TimerRunning = true;
-    pthread_create(&g_Timer, NULL, _timerTick, NULL);
 }
 
 void iFuseLibDestroy() {
-    g_TimerRunning = false;
-    pthread_join(g_Timer, NULL);
-    
     iFuseMetadataCacheDestroy();
     
     iFuseFdDestroy();
@@ -110,6 +104,17 @@ void iFuseLibDestroy() {
     
     pthread_rwlock_destroy(&g_TimerHandlerLock);
     pthread_rwlockattr_destroy(&g_TimerHandlerLockAttr);
+}
+
+void iFuseLibInitTimerThread() {
+    // should be called in FUSE_INIT to avoid dead-lock issue in FUSE
+    g_TimerRunning = true;
+    pthread_create(&g_Timer, NULL, _timerTick, NULL);
+}
+
+void iFuseLibTerminateTimerThread() {
+    g_TimerRunning = false;
+    pthread_join(g_Timer, NULL);    
 }
 
 void iFuseLibSetTimerTickHandler(iFuseLibTimerHandlerCB callback) {

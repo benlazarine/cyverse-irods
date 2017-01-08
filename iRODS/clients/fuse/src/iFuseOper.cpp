@@ -29,11 +29,14 @@ void *iFuseInit(struct fuse_conn_info *conn) {
     }
 #endif
 
+    iFuseLibInitTimerThread();
     return NULL;
 }
 
 void iFuseDestroy(void *data) {
     UNUSED(data);
+    
+    iFuseLibTerminateTimerThread();
 }
 
 int iFuseGetAttr(const char *path, struct stat *stbuf) {
