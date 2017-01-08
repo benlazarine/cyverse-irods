@@ -37,7 +37,7 @@ static void* _timerTick(void* param) {
     iFuseLibLog(LOG_DEBUG, "_timerTick: timer is running");
     
     while(g_TimerRunning) {
-        iFuseLibLog(LOG_DEBUG, "_timerTick: calling timer handlers");
+        //iFuseLibLog(LOG_DEBUG, "_timerTick: calling timer handlers");
         
         pthread_rwlock_rdlock(&g_TimerHandlerLock);
 
@@ -45,13 +45,13 @@ static void* _timerTick(void* param) {
         for(it_cb=g_TimerHandlers.begin();it_cb!=g_TimerHandlers.end();it_cb++) {
             callback = *it_cb;
         
-            iFuseLibLog(LOG_DEBUG, "_timerTick: calling a timer handler %p", callback);
+            //iFuseLibLog(LOG_DEBUG, "_timerTick: calling a timer handler %p", callback);
             callback();
         }
         
         pthread_rwlock_unlock(&g_TimerHandlerLock);
         
-        iFuseLibLog(LOG_DEBUG, "_timerTick: called all timer handlers, sleep 1sec");
+        //iFuseLibLog(LOG_DEBUG, "_timerTick: called all timer handlers, sleep 1sec");
         
         usleep(1000);
     }
