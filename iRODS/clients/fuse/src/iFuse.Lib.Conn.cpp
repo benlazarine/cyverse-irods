@@ -335,7 +335,7 @@ int iFuseConnTest() {
         return -1;
     }
     
-    if(myRodsEnv->rodsHost == NULL || strlen(myRodsEnv->rodsHost) == 0) {
+    if(strlen(myRodsEnv->rodsHost) == 0) {
         iFuseLibLog(LOG_ERROR, "iRODS Host is not configured in rods environment");
         fprintf(stderr, "iRODS Host is not configured in rods environment\n");
         return -1;
@@ -347,13 +347,13 @@ int iFuseConnTest() {
         return -1;
     }
     
-    if(myRodsEnv->rodsUserName == NULL || strlen(myRodsEnv->rodsUserName) == 0) {
+    if(strlen(myRodsEnv->rodsUserName) == 0) {
         iFuseLibLog(LOG_ERROR, "iRODS User Account is not configured in rods environment");
         fprintf(stderr, "iRODS User Account is not configured in rods environment\n");
         return -1;
     }
     
-    if(myRodsEnv->rodsZone == NULL || strlen(myRodsEnv->rodsZone) == 0) {
+    if(strlen(myRodsEnv->rodsZone) == 0) {
         iFuseLibLog(LOG_ERROR, "iRODS Zone is not configured in rods environment");
         fprintf(stderr, "iRODS Zone is not configured in rods environment\n");
         return -1;
