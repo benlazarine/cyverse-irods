@@ -10,7 +10,8 @@
 #include "iFuse.BufferedFS.hpp"
 #include "iFuse.Lib.Fd.hpp"
 
-#define IFUSE_PRELOAD_PBLOCK_NUM         3
+#define IFUSE_PRELOAD_PBLOCK_NUM             3
+#define IFUSE_PRELOAD_MAX_PBLOCK_NUM         10
 
 #define IFUSE_PRELOAD_PBLOCK_STATUS_INIT                 0
 #define IFUSE_PRELOAD_PBLOCK_STATUS_RUNNING              1

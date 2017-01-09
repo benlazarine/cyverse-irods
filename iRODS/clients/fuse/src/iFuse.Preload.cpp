@@ -458,6 +458,10 @@ int _readPreload(iFusePreload_t *iFusePreload, char *buf, unsigned int blockID) 
 void iFusePreloadInit() {
     if(iFuseLibGetOption()->preloadNumBlocks > 0) {
         g_preloadNumBlocks = iFuseLibGetOption()->preloadNumBlocks;
+        
+        if(g_preloadNumBlocks > IFUSE_PRELOAD_MAX_PBLOCK_NUM) {
+            g_preloadNumBlocks = IFUSE_PRELOAD_MAX_PBLOCK_NUM;
+        }
     }
     
     pthread_rwlockattr_init(&g_PreloadLockAttr);
