@@ -164,37 +164,41 @@ static void usage() {
 }
 
 static int checkMountPoint(char *mountPoint, bool nonempty) {
+    char *absMountPath;
     DIR *dir = NULL;
-    char cwd[MAX_NAME_LEN];
-    char mpath[MAX_NAME_LEN];
-    char mpathabs[MAX_NAME_LEN];
-
+    char *resolvedMountPath;
+    
     if(mountPoint == NULL || strlen(mountPoint) == 0) {
         fprintf(stderr, "Mount point is not given\n");
         return -1;
     }
     
-    if(getcwd(cwd, sizeof(cwd)) != NULL) {
-        if(mountPoint[0] == '/') {
-            strcpy(mpath, mountPoint);
-        } else {
-            strcpy(mpath, cwd);
-            if(mpath[strlen(mpath)-1] != '/') {
-                strcat(mpath, "/");
-            }
-            strcat(mpath, mountPoint);
-        }
+    if(mountPoint[0] == '/') {
+        // absolute mount path
+        absMountPath = strdup(mountPoint);
     } else {
-        fprintf(stderr, "Cannot get a current directory\n");
-        return -1;
+        char *cwd = getcwd(NULL, 0);
+        if(cwd != NULL) {
+            int buffsize = strlen(cwd) + 1 + strlen(mountPoint) + 1;
+            absMountPath = (char*)calloc(1, buffsize);
+            
+            strcpy(absMountPath, cwd);
+            if(absMountPath[strlen(absMountPath)-1] != '/') {
+                strcat(absMountPath, "/");
+            }
+            strcat(absMountPath, mountPoint);
+            
+            free(cwd);
+        } else {
+            fprintf(stderr, "Cannot get a current directory\n");
+            return -1;
+        }
     }
     
-    realpath(mpath, mpathabs);
-    if(mpathabs[strlen(mpathabs)-1] != '/') {
-        strcat(mpathabs, "/");
-    }
+    resolvedMountPath = realpath(absMountPath, NULL);
+    free(absMountPath);
     
-    dir = opendir(mpathabs);
+    dir = opendir(resolvedMountPath);
     if(dir != NULL) {
         // exists
         bool filefound = false;
@@ -216,19 +220,23 @@ static int checkMountPoint(char *mountPoint, bool nonempty) {
         closedir(dir);
         
         if(filefound) {
-            fprintf(stderr, "A directory %s is not empty\nif you are sure this is safe, use the 'nonempty' mount option", mpathabs);
+            fprintf(stderr, "A directory %s is not empty\nif you are sure this is safe, use the 'nonempty' mount option", resolvedMountPath);
+            free(resolvedMountPath);
             return -1;
         }
     } else if(errno == ENOENT) {
         // directory not accessible
-        fprintf(stderr, "Cannot find a directory %s\n", mpathabs);
+        fprintf(stderr, "Cannot find a directory %s\n", resolvedMountPath);
+        free(resolvedMountPath);
         return -1;
     } else {
         // not accessible
-        fprintf(stderr, "The directory %s is not accessible\n", mpathabs);
+        fprintf(stderr, "The directory %s is not accessible\n", resolvedMountPath);
+        free(resolvedMountPath);
         return -1;
     }
     
+    free(resolvedMountPath);
     return 0;
 }
 
