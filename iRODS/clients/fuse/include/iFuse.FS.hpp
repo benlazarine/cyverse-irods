@@ -43,5 +43,6 @@ int iFuseFsRename(const char *iRodsFromPath, const char *iRodsToPath);
 int iFuseFsTruncate(const char *iRodsPath, off_t size);
 int iFuseFsChmod(const char *iRodsPath, mode_t mode);
 int iFuseFsIoctl(const char *iRodsPath, int cmd, void *arg, struct fuse_file_info *fi, unsigned int flags, void *data);
+int iFuseFsCacheDir(const char *iRodsPath);
 
 #endif	/* IFUSE_FS_HPP */

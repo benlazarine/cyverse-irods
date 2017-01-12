@@ -1459,3 +1459,109 @@ int iFuseFsIoctl(const char *iRodsPath, int cmd, void *arg, struct fuse_file_inf
 
     return 0;
 }
+
+int iFuseFsCacheDir(const char *iRodsPath) {
+    int status = 0;
+    iFuseConn_t *iFuseConn = NULL;
+    iFuseDir_t *iFuseDir = NULL;
+    
+    assert(iRodsPath != NULL);
+
+    iFuseLibLog(LOG_DEBUG, "iFuseFsCacheDir: %s", iRodsPath);
+
+    // check dir entry cache if available
+    if(g_CacheMetadata) {
+        char *entries = NULL;
+        unsigned int entrybufferLen = 0;
+        collEnt_t collEnt;
+        struct stat stbuf;
+        
+        iFuseMetadataCacheClearExpiredDir(false);
+        
+        status = iFuseMetadataCacheGetDirEntry(iRodsPath, &entries, &entrybufferLen);
+        if(status == 0) {
+            // has dir entry cache
+            iFuseLibLog(LOG_DEBUG, "iFuseFsCacheDir: use cached dir entries of %s", iRodsPath);
+            return 0;
+        }
+        
+        // obtain a connection for a file
+        // while the file is opened, connection is in-use status.
+        if(g_ConnReuse) {
+            status = iFuseConnGetAndUse(&iFuseConn, IFUSE_CONN_TYPE_FOR_FILE_IO);
+        } else {
+            status = iFuseConnGetAndUse(&iFuseConn, IFUSE_CONN_TYPE_FOR_ONETIMEUSE);
+        }
+
+        if (status < 0) {
+            iFuseLibLogError(LOG_ERROR, status, "iFuseFsCacheDir: iFuseConnGetAndUse of %s error",
+                    iRodsPath);
+            return -EIO;
+        }
+
+        status = iFuseDirOpen(&iFuseDir, iFuseConn, iRodsPath);
+        if (status < 0) {
+            iFuseLibLogError(LOG_ERROR, status, "iFuseFsCacheDir: iFuseDirOpen of %s error, status = %d",
+                    iRodsPath, status);
+            return -ENOENT;
+        }
+        
+        // read & cache
+        iFuseDirLock(iFuseDir);
+        iFuseConnLock(iFuseConn);
+
+        bzero(&collEnt, sizeof ( collEnt_t));
+        
+        while ((status = iFuseRodsClientReadCollection(iFuseConn->conn, iFuseDir->handle, &collEnt)) >= 0) {
+            iFuseConnUpdateLastActTime(iFuseConn, false);
+            if (collEnt.objType == DATA_OBJ_T) {
+                if(g_CacheMetadata) {
+                    bzero(&stbuf, sizeof ( struct stat));
+                    _fillFileStat(&stbuf,
+                                  _safeAtoi(collEnt.dataId),
+                                  collEnt.dataMode,
+                                  collEnt.dataSize,
+                                  _safeAtoi(collEnt.createTime),
+                                  _safeAtoi(collEnt.modifyTime),
+                                  _safeAtoi(collEnt.modifyTime));
+                    iFuseMetadataCachePutStat2(iFuseDir->iRodsPath, collEnt.dataName, &stbuf);
+                    iFuseMetadataCacheAddDirEntry(iFuseDir->iRodsPath, collEnt.dataName);
+                }
+            } else if (collEnt.objType == COLL_OBJ_T) {
+                char filename[MAX_NAME_LEN];
+                int status2;
+
+                status2 = iFuseLibGetFilename(collEnt.collName, filename, MAX_NAME_LEN);
+                if (status2 == 0) {
+                    if(g_CacheMetadata) {
+                        bzero(&stbuf, sizeof ( struct stat));
+                        _fillDirStat(&stbuf,
+                                     _safeAtoi(collEnt.dataId),
+                                     _safeAtoi(collEnt.createTime),
+                                     _safeAtoi(collEnt.modifyTime),
+                                     _safeAtoi(collEnt.modifyTime));
+                        iFuseMetadataCachePutStat2(iFuseDir->iRodsPath, filename, &stbuf);
+                        iFuseMetadataCacheAddDirEntry(iFuseDir->iRodsPath, filename);
+                    }
+                }
+            }
+        }
+        
+        iFuseConnUnlock(iFuseConn);
+        iFuseDirUnlock(iFuseDir);
+        
+        // close
+        status = iFuseDirClose(iFuseDir);
+        if (status < 0) {
+            iFuseLibLogError(LOG_ERROR, status, "iFuseFsCacheDir: iFuseDirClose of %s error, status = %d",
+                    iRodsPath, status);
+            return -ENOENT;
+        }
+        
+        if(iFuseConn != NULL) {
+            iFuseConnUnuse(iFuseConn);
+        }
+    }
+
+    return 0;
+}

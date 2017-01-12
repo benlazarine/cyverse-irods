@@ -30,6 +30,21 @@ void *iFuseInit(struct fuse_conn_info *conn) {
 #endif
 
     iFuseLibInitTimerThread();
+    
+    int status = 0;
+    char iRodsPath[MAX_NAME_LEN];
+    bzero(iRodsPath, MAX_NAME_LEN);
+    
+    iFuseLibLog(LOG_DEBUG, "iFuseInit: pre-fetch mount root directory.");
+    status = iFuseRodsClientMakeRodsPath("/", iRodsPath);
+    if (status < 0) {
+        iFuseLibLogError(LOG_ERROR, status,
+                "iFuseInit: iFuseRodsClientMakeRodsPath of %s error", iRodsPath);
+        // quick return
+        return NULL;
+    }
+    iFuseFsCacheDir(iRodsPath);
+    
     return NULL;
 }
 
