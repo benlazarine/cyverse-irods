@@ -33,6 +33,7 @@ int iFuseMetadataCacheAddDirEntryIfFresh(const char *iRodsPath, const char *iRod
 int iFuseMetadataCacheAddDirEntryIfFresh2(const char *iRodsPath);
 int iFuseMetadataCacheGetStat(const char *iRodsPath, struct stat *stbuf);
 int iFuseMetadataCacheGetDirEntry(const char *iRodsPath, char **entries, unsigned int *bufferLen);
+int iFuseMetadataCacheCheckExistanceOfDirEntry(const char *iRodsPath);
 int iFuseMetadataCacheRemoveStat(const char *iRodsPath);
 int iFuseMetadataCacheRemoveDir(const char *iRodsPath);
 int iFuseMetadataCacheRemoveDirEntry(const char *iRodsPath, const char *iRodsFilename);

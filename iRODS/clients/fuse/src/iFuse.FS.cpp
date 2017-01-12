@@ -100,6 +100,17 @@ int iFuseFsGetAttr(const char *iRodsPath, struct stat *stbuf) {
             iFuseLibLog(LOG_DEBUG, "iFuseFsGetAttr: use cached stat of %s", iRodsPath);
             return 0;
         }
+        
+        // check dir entry cache
+        // if the file does not exist in dir entry cache, return ENOENT
+        iFuseMetadataCacheClearExpiredDir(false);
+        
+        status = iFuseMetadataCacheCheckExistanceOfDirEntry(iRodsPath);
+        if(status == 1) {
+            // has stat cache
+            iFuseLibLog(LOG_DEBUG, "iFuseFsGetAttr: return ENOENT from cached dir entry of %s", iRodsPath);
+            return -ENOENT;
+        }
     }
 
     // temporarily obtain a connection
