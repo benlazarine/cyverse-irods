@@ -24,6 +24,16 @@ void iFuseUtilDestroy() {
     pthread_rwlockattr_destroy(&g_LogLockAttr);
 }
 
+#define TOUPPER(CH) \
+    (((CH) >= 'a' && (CH) <= 'z') ? ((CH) - 'a' + 'A') : (CH))
+
+int iFuseUtilStricmp (const char *s1, const char *s2) {
+    while (*s2 != 0 && TOUPPER (*s1) == TOUPPER (*s2)) {
+        s1++, s2++;
+    }
+    return (int) (TOUPPER (*s1) - TOUPPER (*s2));
+}
+
 time_t iFuseLibGetCurrentTime() {
     return time(NULL);
 }

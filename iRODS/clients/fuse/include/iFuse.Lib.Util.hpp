@@ -57,6 +57,7 @@
 void iFuseUtilInit();
 void iFuseUtilDestroy();
 
+int iFuseUtilStricmp (const char *s1, const char *s2);
 time_t iFuseLibGetCurrentTime();
 void iFuseLibGetStrCurrentTime(char *buff);
 void iFuseLibGetStrTime(time_t time, char *buff);
