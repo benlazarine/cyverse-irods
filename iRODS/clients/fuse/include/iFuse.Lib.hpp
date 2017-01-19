@@ -33,6 +33,7 @@ typedef struct IFuseOpt {
     int preloadNumBlocks;
     int metadataCacheTimeoutSec;
     char *ticket;
+    char *workdir;
     char *mountpoint;
     iFuseExtendedOpt_t *extendedOpts;
 } iFuseOpt_t;
