@@ -32,6 +32,7 @@ typedef struct IFuseOpt {
     int rodsapiTimeoutSec;
     int preloadNumBlocks;
     int metadataCacheTimeoutSec;
+    char *ticket;
     char *mountpoint;
     iFuseExtendedOpt_t *extendedOpts;
 } iFuseOpt_t;

@@ -55,21 +55,23 @@ The user's home collection is now mounted. The iRODS files and sub-collections
 in the user's home collection should be accessible with normal UNIX commands 
 through the /usr/tmp/fmount directory. 
 
+
 Run irodsFs in debug mode
 -------------------------
 
 To run irodsFs in debug mode:
 
-1) set the env variable irodsLogLevel to 4, e.g. in csh:
+1) set the env variable irodsLogLevel to 4:
 
-setenv irodsLogLevel 4
+```
+export irodsLogLevel=4
+```
 
 2) run irodsFs in debug mode, e.g.
 
+```
 irodsFs -d yourMountPoint
-
-It should print out a lot of debugging info.
-
+```
 
 Use irodsFsCtl for control
 --------------------------
@@ -131,7 +133,7 @@ irodsFs -oconnreuse -opreloadblocks 5 -ometadatacachetimeout 3600 yourMountPoint
 WARNING
 -------
 
-1) When a collection is mounted using irodsFs, uses of iCommands
+When a collection is mounted using irodsFs, uses of iCommands
 such as iput, irm, icp, etc that change the content of the collection should be 
 avoided because the FUSE implementation caches the attributes of the contents of
 the collection.
